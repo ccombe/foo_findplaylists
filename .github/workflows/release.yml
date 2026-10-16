@@ -215,9 +215,9 @@ jobs:
             "<details>",
             "<summary><b>SHA-256 Checksum</b></summary>",
             "",
-            "```",
+            '```',
             "$hash  $pkg",
-            "```",
+            '```',
             "",
             "</details>"
           )

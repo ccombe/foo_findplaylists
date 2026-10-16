@@ -106,11 +106,11 @@ jobs:
             "## 📦 Component PR Build & Release Status",
             "",
             "- **Test Result**: ✅ All unit tests passed",
-            "- **Semantic Bump Detected**: ``$bump``",
-            "- **Next Release Version Upon Merge**: ``v$predictedVer``",
-            "- **Test Component Package**: ``$pkgName`` (downloadable from the Artifacts section above)",
+            ("- **Semantic Bump Detected**: ``{0}``" -f $bump),
+            ("- **Next Release Version Upon Merge**: ``v{0}``" -f $predictedVer),
+            ("- **Test Component Package**: ``{0}`` (downloadable from Artifacts above)" -f $pkgName),
             "",
-            "> 🚀 **Automated Release**: When this PR is merged to ``master``, GitHub Actions will automatically tag ``v$predictedVer``, package the foobar2000 component, publish the GitHub Release, and post the changelog."
+            "> 🚀 **Automated Release**: When this PR is merged to master, GitHub Actions will automatically tag and publish this release."
           )
 
           $lines -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
