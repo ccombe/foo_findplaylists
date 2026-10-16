@@ -1,0 +1,11 @@
+sdk/
+x64/
+.git/
+node_modules/
+*.fb2k-component
+*.sha256
+*.exe
+*.dll
+*.lib
+*.obj
+*.log

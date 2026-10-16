@@ -1,0 +1,22 @@
+{
+  "name": "foo_findplaylists",
+  "version": "1.4.0",
+  "private": true,
+  "description": "Reverse playlist lookup and playlist hygiene component for foobar2000",
+  "scripts": {
+    "prepare": "husky",
+    "format": "prettier --write \"**/*.{md,yml,yaml,json}\" && clang-format -i src/*.cpp src/*.h tests/*.cpp",
+    "format:check": "prettier --check \"**/*.{md,yml,yaml,json}\" && clang-format --dry-run --Werror src/*.cpp src/*.h tests/*.cpp",
+    "lint:quality": "python3 scripts/check_quality.py",
+    "lint": "npm run format:check && npm run lint:quality",
+    "check": "npm run lint"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.8.0",
+    "@commitlint/config-conventional": "^19.8.0",
+    "clang-format": "^1.8.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.4.3",
+    "prettier": "^3.5.3"
+  }
+}

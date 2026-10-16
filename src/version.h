@@ -1,5 +1,5 @@
+#pragma once
+
 // Single source of truth for the component version.
-// Release flow: bump this, commit, tag v<version>, push the tag.
+// Automatically updated by GitHub Actions semantic release.
 #define FIP_VERSION "1.4.0"
-
-

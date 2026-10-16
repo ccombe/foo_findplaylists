@@ -11,5 +11,11 @@ x64/
 *.VC.db
 *.VC.VC.opendb
 
-# Packaged component
+# Packaged component & release artifacts
 *.fb2k-component
+*.sha256
+notes.md
+
+# Node / npm
+node_modules/
+package-lock.json

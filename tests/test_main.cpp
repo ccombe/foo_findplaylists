@@ -9,8 +9,23 @@
 static int g_failures = 0;
 static int g_checks = 0;
 
-#define CHECK(cond) do { ++g_checks; if (!(cond)) { ++g_failures; printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond); } } while (0)
-#define CHECK_STR_EQ(a, b) do { ++g_checks; std::string _a(a), _b(b); if (_a != _b) { ++g_failures; printf("FAIL %s:%d:\n  got:      [%s]\n  expected: [%s]\n", __FILE__, __LINE__, _a.c_str(), _b.c_str()); } } while (0)
+#define CHECK(cond)                                                                                                    \
+    do {                                                                                                               \
+        ++g_checks;                                                                                                    \
+        if (!(cond)) {                                                                                                 \
+            ++g_failures;                                                                                              \
+            printf("FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);                                                     \
+        }                                                                                                              \
+    } while (0)
+#define CHECK_STR_EQ(a, b)                                                                                             \
+    do {                                                                                                               \
+        ++g_checks;                                                                                                    \
+        std::string _a(a), _b(b);                                                                                      \
+        if (_a != _b) {                                                                                                \
+            ++g_failures;                                                                                              \
+            printf("FAIL %s:%d:\n  got:      [%s]\n  expected: [%s]\n", __FILE__, __LINE__, _a.c_str(), _b.c_str());   \
+        }                                                                                                              \
+    } while (0)
 
 static std::string fmt_report(const std::vector<track_report> & r) {
     pfc::string_formatter f;
@@ -44,37 +59,32 @@ static void test_format_report() {
     track_report r;
     r.header = "Artist - Title";
     r.key = "k";
-    r.lists = { "2025-03", "2025" };
-    CHECK_STR_EQ(fmt_report({ r }),
-        "Artist - Title\n  Found in 2 playlists:\n  - 2025-03\n  - 2025\n");
+    r.lists = {"2025-03", "2025"};
+    CHECK_STR_EQ(fmt_report({r}), "Artist - Title\n  Found in 2 playlists:\n  - 2025-03\n  - 2025\n");
 
     track_report solo = r;
-    solo.lists = { "2025-03" };
-    CHECK_STR_EQ(fmt_report({ solo }),
-        "Artist - Title\n  Found in 1 playlist:\n  - 2025-03\n");
+    solo.lists = {"2025-03"};
+    CHECK_STR_EQ(fmt_report({solo}), "Artist - Title\n  Found in 1 playlist:\n  - 2025-03\n");
 
     track_report none = r;
     none.lists.clear();
-    CHECK_STR_EQ(fmt_report({ none }), "Artist - Title\n  (not in any playlist)\n");
+    CHECK_STR_EQ(fmt_report({none}), "Artist - Title\n  (not in any playlist)\n");
 
     CHECK_STR_EQ(fmt_report({}), "");
 }
 
 static void test_format_dead() {
-    dead_entry a{ 0, "Mix A", 3, "Artist - One" };
-    dead_entry b{ 0, "Mix A", 7, "Artist - Two" };
-    dead_entry c{ 1, "Mix B", 0, "Artist - Three" };
-    CHECK_STR_EQ(fmt_dead({ a, b, c }, false),
-        "Dead tracks found: 3 entries across 2 playlists.\n"
-        "No changes made. Run Remove Dead Tracks to apply.\n"
-        "Mix A: 2\n  - Artist - One\n  - Artist - Two\n"
-        "Mix B: 1\n  - Artist - Three\n");
-    CHECK_STR_EQ(fmt_dead({ a }, true),
-        "Dead tracks removed: 1 entries across 1 playlists.\n"
-        "(Undo per playlist with Ctrl+Z if anything looks wrong.)\n"
-        "Mix A: 1\n  - Artist - One\n");
-    CHECK_STR_EQ(fmt_dead({}, false),
-        "No dead tracks found. Nothing to do.\n");
+    dead_entry a{0, "Mix A", 3, "Artist - One"};
+    dead_entry b{0, "Mix A", 7, "Artist - Two"};
+    dead_entry c{1, "Mix B", 0, "Artist - Three"};
+    CHECK_STR_EQ(fmt_dead({a, b, c}, false), "Dead tracks found: 3 entries across 2 playlists.\n"
+                                             "No changes made. Run Remove Dead Tracks to apply.\n"
+                                             "Mix A: 2\n  - Artist - One\n  - Artist - Two\n"
+                                             "Mix B: 1\n  - Artist - Three\n");
+    CHECK_STR_EQ(fmt_dead({a}, true), "Dead tracks removed: 1 entries across 1 playlists.\n"
+                                      "(Undo per playlist with Ctrl+Z if anything looks wrong.)\n"
+                                      "Mix A: 1\n  - Artist - One\n");
+    CHECK_STR_EQ(fmt_dead({}, false), "No dead tracks found. Nothing to do.\n");
 }
 
 static void test_write_report_file() {
@@ -83,7 +93,7 @@ static void test_write_report_file() {
     const std::string path(write_report_file("t", body));
     CHECK(path.size() > 0);
     CHECK(path.find("foo_findplaylists_report.txt") != std::string::npos);
-    FILE * f = fopen(path.c_str(), "r");
+    FILE *f = fopen(path.c_str(), "r");
     CHECK(f != nullptr);
     if (f) {
         char buf[16] = {};

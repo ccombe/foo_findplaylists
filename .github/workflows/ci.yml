@@ -3,10 +3,38 @@ name: CI
 on:
   push:
     branches: [master, main]
-    tags-ignore: ['v*']
+    tags-ignore: ["v*"]
   pull_request:
 
 jobs:
+  quality:
+    name: Code Quality & Complexity (CRAP Score)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Check code formatting (clang-format & prettier)
+        run: npm run format:check
+
+      - name: Run code quality, type safety, and CRAP score check
+        run: python3 scripts/check_quality.py --ci
+
   build:
     name: Build & Test Component
     runs-on: windows-latest

@@ -50,13 +50,29 @@ msbuild foo_findplaylists.vcxproj /p:Configuration=Release /p:Platform=x64
 Output: `x64\Release\foo_findplaylists.dll`. Components load at startup; there is
 no hot reload. The dev loop is build, copy the DLL, restart foobar.
 
-## Tests
+## Tests and code quality
 
 Pure logic lives in `src/logic.*` (no live foobar services) and is covered by
 `tests/` (assert runner, no framework). The build compiles with warnings as
 errors (`/WX`). CI builds the DLL, builds the tests, runs them, and fails on
 anything red. The Library menu commands double as integration tests: each writes
 its findings to `%TEMP%\foo_findplaylists_report.txt`.
+
+### Formatting, Linting & Complexity Checks
+
+- **C++ Formatting**: `clang-format` (configured via `.clang-format`).
+- **Markdown / YAML / JSON**: `prettier` (configured via `.prettierrc`).
+- **Commit Messages**: `commitlint` validating Conventional Commits format.
+- **Complexity & CRAP Score**: `scripts/check_quality.py` computes Cyclomatic Complexity (McCabe) and CRAP (Change Risk Anti-Patterns) scores for all functions.
+- **Git Hooks**: Managed by Husky (`.husky/`):
+  - `pre-commit`: runs `lint-staged` with `clang-format` and `prettier`.
+  - `commit-msg`: runs `commitlint` on the commit message.
+  - `pre-push`: runs the full lint and quality checks suite.
+- Run checks manually:
+  ```bash
+  npm run lint          # runs format check + CRAP score / type safety analysis
+  npm run format        # formats C++, Markdown, and YAML files
+  ```
 
 ## Versioning and releases
 
