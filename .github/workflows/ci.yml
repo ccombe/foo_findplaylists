@@ -76,7 +76,8 @@ jobs:
 
           # Check PR commits / range
           $range = if ($latestTag) { "$latestTag..HEAD" } else { "HEAD" }
-          $commits = git log $range --pretty=format:"%s%n%b"
+          $commits = @(git log $range --pretty=format:"%s%n%b")
+          $commitText = ($commits -join "`n").Trim()
 
           $parts = $baseVer.Split('.')
           [int]$major = $parts[0]
@@ -84,12 +85,12 @@ jobs:
           [int]$patch = $parts[2]
 
           $bump = "patch"
-          if ($commits -match "(?m)^[a-zA-Z]+(\([^\)]+\))?!:" -or $commits -match "BREAKING CHANGE") {
+          if ($commitText -match "(?m)^[a-zA-Z]+(\([^\)]+\))?!:" -or $commitText -match "BREAKING CHANGE") {
             $bump = "major"
             $major++
             $minor = 0
             $patch = 0
-          } elseif ($commits -match "(?m)^feat(\([^\)]+\))?:") {
+          } elseif ($commitText -match "(?m)^feat(\([^\)]+\))?:") {
             $bump = "minor"
             $minor++
             $patch = 0

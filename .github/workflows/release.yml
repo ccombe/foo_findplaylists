@@ -54,8 +54,9 @@ jobs:
           } else {
             Write-Host "Latest release tag found: $latestTag"
             $range = "$latestTag..HEAD"
-            $commits = git log $range --pretty=format:"%s%n%b"
-            if (-not $commits -or $commits.Trim() -eq "") {
+            $commits = @(git log $range --pretty=format:"%s%n%b")
+            $commitText = ($commits -join "`n").Trim()
+            if (-not $commitText) {
               Write-Host "No new commits since $latestTag. Skipping release."
               Write-Output "should_release=false" >> $env:GITHUB_OUTPUT
               exit 0
@@ -70,9 +71,9 @@ jobs:
 
             $bump = if ($env:MANUAL_BUMP -and $env:MANUAL_BUMP -ne 'auto') { $env:MANUAL_BUMP } else { $null }
             if (-not $bump) {
-              if ($commits -match "(?m)^[a-zA-Z]+(\([^\)]+\))?!:" -or $commits -match "BREAKING CHANGE") {
+              if ($commitText -match "(?m)^[a-zA-Z]+(\([^\)]+\))?!:" -or $commitText -match "BREAKING CHANGE") {
                 $bump = "major"
-              } elseif ($commits -match "(?m)^feat(\([^\)]+\))?:") {
+              } elseif ($commitText -match "(?m)^feat(\([^\)]+\))?:") {
                 $bump = "minor"
               } else {
                 $bump = "patch"
