@@ -24,8 +24,16 @@ jobs:
           $ver = $env:GITHUB_REF_NAME.TrimStart('v')
           Compress-Archive -Path x64\Release\foo_findplaylists.dll `
             -DestinationPath "foo_findplaylists-$ver.fb2k-component" -Force
+      - name: Release notes from changelog
+        shell: pwsh
+        run: |
+          $ver = $env:GITHUB_REF_NAME.TrimStart('v')
+          $text = Get-Content CHANGELOG.md -Raw
+          $m = [regex]::Match($text, "(?ms)^## \[$ver\].*?(?=^## \[|\z)")
+          if ($m.Success) { $m.Value.Trim() | Out-File notes.md -Encoding utf8 }
+          else { "See commit history." | Out-File notes.md -Encoding utf8 }
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body_path: notes.md
           files: foo_findplaylists-*.fb2k-component

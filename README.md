@@ -61,10 +61,15 @@ its findings to `%TEMP%\foo_findplaylists_report.txt`.
 ## Versioning and releases
 
 - Version lives in one place: `FIP_VERSION` in `src/version.h`.
-- To release: bump it, commit, tag `v<version>` (e.g. `v1.4`), push the tag.
-- The release workflow builds Release x64, packages
+- Changes are recorded in `CHANGELOG.md` (Keep a Changelog: Added / Changed /
+  Fixed) under `[Unreleased]` as they land.
+- Commits use Conventional Commits prefixes (`feat:`, `fix:`, `docs:`,
+  `refactor:`, `test:`, `ci:`, `chore:`) so history stays scannable.
+- To release: move the `[Unreleased]` entries under a new `## [x.y]` heading,
+  bump `FIP_VERSION`, commit, tag `v<version>` (e.g. `v1.4`), push the tag.
+- The release workflow builds Release x64, runs the tests, packages
   `foo_findplaylists-<version>.fb2k-component` (the DLL zipped), and creates the
-  GitHub release with auto-generated notes from commit messages.
+  GitHub release using the changelog section as the notes.
 
 ## Layout
 
