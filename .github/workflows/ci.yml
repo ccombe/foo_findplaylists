@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+    tags-ignore: ['v*']
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build component
+        run: msbuild foo_findplaylists.vcxproj /p:Configuration=Release /p:Platform=x64 /v:minimal
+      - name: Build tests
+        run: msbuild tests/tests.vcxproj /p:Configuration=Release /p:Platform=x64 /v:minimal
+      - name: Run tests
+        run: .\tests\x64\Release\tests.exe
+      - name: Upload DLL
+        uses: actions/upload-artifact@v4
+        with:
+          name: foo_findplaylists-dll
+          path: x64/Release/foo_findplaylists.dll
