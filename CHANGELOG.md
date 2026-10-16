@@ -5,6 +5,20 @@ Versions match `FIP_VERSION` in `src/version.h`.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-16
+
+### Changes
+- perf: reduce nested logic, use guard clauses, and optimize algorithmic complexity (#1) (7162b1b)
+- fix(release): fix commits string parsing in release and ci workflows (6ee8c05)
+- perf: reduce nested logic, use guard clauses, and optimize algorithmic complexity (e67d3fa)
+- ci: upgrade GitHub Actions to latest supported versions (v7/v6/v3) and Node 22 (a400154)
+- fix(build): restore foobar2000-lite.h include order in stdafx.h (00c81a9)
+- fix(build): preserve stdafx.h include order with SortIncludes: Never (254d4c9)
+- fix(ci): remove unused foo_sample SDK solution breaking dependency submission (4e45315)
+- feat: configure linter, formatter, code complexity, CRAP score, and git hooks (e2b312a)
+- fix(release): format package name in install instructions [skip ci] (8fe0db8)
+- chore(release): bump version to 1.4.0 [skip ci] (544e85d)
+
 ## [1.4] - 2026-10-16
 
 ### Added
@@ -62,3 +76,4 @@ Versions match `FIP_VERSION` in `src/version.h`.
 - Right-click track(s) to see which playlists contain them (popup report).
 - Library command reporting the playlists holding the now-playing track.
 - Properties dialog gains a Playlists group for the selected track(s).
+
