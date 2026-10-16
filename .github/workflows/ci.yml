@@ -14,15 +14,15 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.x"
 
@@ -42,12 +42,12 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@v3
 
       - name: Build component
         run: msbuild foo_findplaylists.vcxproj /p:Configuration=Release /p:Platform=x64 /v:minimal
@@ -110,14 +110,14 @@ jobs:
           Write-Host "Packaged component: $pkgName (Predicted next version: $predictedVer, bump: $bump)"
 
       - name: Upload foobar2000 component package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: foo_findplaylists-component
           path: "*.fb2k-component"
           if-no-files-found: error
 
       - name: Upload DLL artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: foo_findplaylists-dll
           path: x64/Release/foo_findplaylists.dll
