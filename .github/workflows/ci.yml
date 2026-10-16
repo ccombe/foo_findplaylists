@@ -8,18 +8,109 @@ on:
 
 jobs:
   build:
+    name: Build & Test Component
     runs-on: windows-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: microsoft/setup-msbuild@v2
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
       - name: Build component
         run: msbuild foo_findplaylists.vcxproj /p:Configuration=Release /p:Platform=x64 /v:minimal
+
       - name: Build tests
         run: msbuild tests/tests.vcxproj /p:Configuration=Release /p:Platform=x64 /v:minimal
+
       - name: Run tests
         run: .\tests\x64\Release\tests.exe
-      - name: Upload DLL
+
+      - name: Predict Semantic Version & Package Component
+        id: package
+        shell: pwsh
+        run: |
+          git fetch --tags --force
+          $tags = git tag -l --sort=-v:refname "v*"
+          $latestTag = if ($tags) { ($tags -split "`r?`n")[0].Trim() } else { $null }
+
+          $baseVer = "1.4.0"
+          if ($latestTag) {
+            $raw = $latestTag.TrimStart('v')
+            $parts = $raw.Split('.')
+            while ($parts.Count -lt 3) { $parts += '0' }
+            $baseVer = $parts[0..2] -join '.'
+          }
+
+          # Check PR commits / range
+          $range = if ($latestTag) { "$latestTag..HEAD" } else { "HEAD" }
+          $commits = git log $range --pretty=format:"%s%n%b"
+
+          $parts = $baseVer.Split('.')
+          [int]$major = $parts[0]
+          [int]$minor = $parts[1]
+          [int]$patch = $parts[2]
+
+          $bump = "patch"
+          if ($commits -match "(?m)^[a-zA-Z]+(\([^\)]+\))?!:" -or $commits -match "BREAKING CHANGE") {
+            $bump = "major"
+            $major++
+            $minor = 0
+            $patch = 0
+          } elseif ($commits -match "(?m)^feat(\([^\)]+\))?:") {
+            $bump = "minor"
+            $minor++
+            $patch = 0
+          } else {
+            $patch++
+          }
+
+          $predictedVer = if ($latestTag) { "$major.$minor.$patch" } else { $baseVer }
+
+          $prNum = "${{ github.event.pull_request.number }}"
+          $label = if ($prNum) { "pr$prNum" } else { "ci-$($env:GITHUB_RUN_NUMBER)" }
+          $pkgName = "foo_findplaylists-$predictedVer-$label.fb2k-component"
+          Compress-Archive -Path x64\Release\foo_findplaylists.dll -DestinationPath $pkgName -Force
+
+          Write-Output "pkg_name=$pkgName" >> $env:GITHUB_OUTPUT
+          Write-Output "predicted_version=$predictedVer" >> $env:GITHUB_OUTPUT
+          Write-Output "bump_type=$bump" >> $env:GITHUB_OUTPUT
+          Write-Host "Packaged component: $pkgName (Predicted next version: $predictedVer, bump: $bump)"
+
+      - name: Upload foobar2000 component package
+        uses: actions/upload-artifact@v4
+        with:
+          name: foo_findplaylists-component
+          path: "*.fb2k-component"
+          if-no-files-found: error
+
+      - name: Upload DLL artifact
         uses: actions/upload-artifact@v4
         with:
           name: foo_findplaylists-dll
           path: x64/Release/foo_findplaylists.dll
+          if-no-files-found: error
+
+      - name: PR Release Check & Summary
+        shell: pwsh
+        run: |
+          $predictedVer = "${{ steps.package.outputs.predicted_version }}"
+          $pkgName = "${{ steps.package.outputs.pkg_name }}"
+          $bump = "${{ steps.package.outputs.bump_type }}"
+
+          $lines = @(
+            "## 📦 Component PR Build & Release Status",
+            "",
+            "- **Test Result**: ✅ All unit tests passed",
+            "- **Semantic Bump Detected**: ``$bump``",
+            "- **Next Release Version Upon Merge**: ``v$predictedVer``",
+            "- **Test Component Package**: ``$pkgName`` (downloadable from the Artifacts section above)",
+            "",
+            "> 🚀 **Automated Release**: When this PR is merged to ``master``, GitHub Actions will automatically tag ``v$predictedVer``, package the foobar2000 component, publish the GitHub Release, and post the changelog."
+          )
+
+          $lines -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8

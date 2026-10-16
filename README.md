@@ -67,11 +67,17 @@ its findings to `%TEMP%\foo_findplaylists_report.txt`.
 - Commits use [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/)
   prefixes (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `ci:`, `chore:`)
   so history stays scannable.
-- To release: move the `[Unreleased]` entries under a new `## [x.y]` heading,
-  bump `FIP_VERSION`, commit, tag `v<version>` (e.g. `v1.4`), push the tag.
-- The release workflow builds Release x64, runs the tests, packages
-  `foo_findplaylists-<version>.fb2k-component` (the DLL zipped), and creates the
-  GitHub release using the changelog section as the notes.
+- PR workflow: Every pull request automatically builds x64 Release binaries, executes the test suite, predicts the semantic version bump based on conventional commits, packages a testable `.fb2k-component` bundle uploaded to the Actions artifacts, and produces a release summary in GitHub Actions.
+- Automated semantic releases: When a PR is merged to `master`, GitHub Actions automatically:
+  1. Inspects merged commits for conventional commit types (`feat:` -> minor, `fix:` -> patch, `BREAKING CHANGE:` -> major).
+  2. Increments `FIP_VERSION` in `src/version.h` and updates `CHANGELOG.md`.
+  3. Tags `v<version>` and pushes the bump commit.
+  4. Builds and packages `foo_findplaylists-<version>.fb2k-component` with SHA-256 checksums.
+  5. Publishes a GitHub Release with:
+     - Direct download link and installation instructions for foobar2000.
+     - Curated changelog section from `CHANGELOG.md`.
+     - Automatically categorized release notes based on the previous release.
+- Manual triggers via GitHub Actions `workflow_dispatch` (with bump type selector: auto, patch, minor, major) are also supported.
 
 ## Layout
 
