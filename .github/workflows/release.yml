@@ -202,7 +202,7 @@ jobs:
             "#### How to install:",
             "1. Download **[$pkg]($downloadUrl)**.",
             "2. In foobar2000, go to **File > Preferences > Components**.",
-            "3. Click **Install...**, select `$pkg`, and click **Apply** / restart foobar2000.",
+            ("3. Click **Install...**, select `{0}`, and click **Apply** / restart foobar2000." -f $pkg),
             "",
             "---",
             "",
