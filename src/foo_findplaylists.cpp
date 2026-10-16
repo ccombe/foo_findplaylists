@@ -6,8 +6,8 @@
 // and Library -> "Find in Playlists" submenu holds library-wide commands
 // (all file-based, no popups).
 
-#include "logic.h"
 #include "stdafx.h"
+#include "logic.h"
 #include "version.h"
 
 DECLARE_COMPONENT_VERSION("Find in Playlists", FIP_VERSION, "Shows which playlists contain the selected track(s).");

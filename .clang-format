@@ -9,3 +9,4 @@ BreakBeforeBraces: Attach
 AllowShortFunctionsOnASingleLine: Inline
 PointerAlignment: Right
 ReferenceAlignment: Middle
+SortIncludes: Never
