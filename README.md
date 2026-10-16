@@ -61,10 +61,12 @@ its findings to `%TEMP%\foo_findplaylists_report.txt`.
 ## Versioning and releases
 
 - Version lives in one place: `FIP_VERSION` in `src/version.h`.
-- Changes are recorded in `CHANGELOG.md` (Keep a Changelog: Added / Changed /
-  Fixed) under `[Unreleased]` as they land.
-- Commits use Conventional Commits prefixes (`feat:`, `fix:`, `docs:`,
-  `refactor:`, `test:`, `ci:`, `chore:`) so history stays scannable.
+- Changes are recorded in `CHANGELOG.md`
+  ([Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/): Added /
+  Changed / Fixed) under `[Unreleased]` as they land.
+- Commits use [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/)
+  prefixes (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `ci:`, `chore:`)
+  so history stays scannable.
 - To release: move the `[Unreleased]` entries under a new `## [x.y]` heading,
   bump `FIP_VERSION`, commit, tag `v<version>` (e.g. `v1.4`), push the tag.
 - The release workflow builds Release x64, runs the tests, packages
