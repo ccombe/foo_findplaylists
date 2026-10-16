@@ -104,12 +104,54 @@ static void test_write_report_file() {
     }
 }
 
+static void test_record_track_playlist_match() {
+    std::unordered_map<std::string, size_t> indexOf;
+    std::vector<track_report> reports;
+
+    track_report r1;
+    r1.header = "Artist 1 - Song 1";
+    r1.key = "track_1";
+    indexOf.emplace(r1.key, reports.size());
+    reports.push_back(std::move(r1));
+
+    track_report r2;
+    r2.header = "Artist 2 - Song 2";
+    r2.key = "track_2";
+    indexOf.emplace(r2.key, reports.size());
+    reports.push_back(std::move(r2));
+
+    // Unknown track key: should return false and leave reports unchanged
+    CHECK(!record_track_playlist_match("unknown_track", "Rock Hits", indexOf, reports));
+    CHECK(reports[0].lists.empty());
+    CHECK(reports[1].lists.empty());
+
+    // First match for track 1 in playlist "Rock Hits": succeeds
+    CHECK(record_track_playlist_match("track_1", "Rock Hits", indexOf, reports));
+    CHECK(reports[0].lists.size() == 1);
+    CHECK_STR_EQ(reports[0].lists[0], "Rock Hits");
+
+    // Repeated occurrence in same playlist: should be deduplicated (return false)
+    CHECK(!record_track_playlist_match("track_1", "Rock Hits", indexOf, reports));
+    CHECK(reports[0].lists.size() == 1);
+
+    // Track 1 in second playlist: succeeds
+    CHECK(record_track_playlist_match("track_1", "Favorites", indexOf, reports));
+    CHECK(reports[0].lists.size() == 2);
+    CHECK_STR_EQ(reports[0].lists[1], "Favorites");
+
+    // Track 2 in "Favorites": succeeds
+    CHECK(record_track_playlist_match("track_2", "Favorites", indexOf, reports));
+    CHECK(reports[1].lists.size() == 1);
+    CHECK_STR_EQ(reports[1].lists[0], "Favorites");
+}
+
 int main() {
     test_track_key();
     test_safe_filename();
     test_format_report();
     test_format_dead();
     test_write_report_file();
+    test_record_track_playlist_match();
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
 }

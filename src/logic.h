@@ -6,6 +6,7 @@
 #include <pfc/pfc.h>
 
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 // Identity of one playable track: file path + subsong index.
@@ -16,6 +17,12 @@ struct track_report {
     std::string key;
     std::vector<std::string> lists;
 };
+
+// Matches a track key against indexed tracks and appends the playlist name if not already recorded.
+// Returns true if a new association was recorded.
+bool record_track_playlist_match(const std::string & key, const std::string & playlistName,
+                                 const std::unordered_map<std::string, size_t> & indexOf,
+                                 std::vector<track_report> & reports);
 
 struct dup_info {
     std::string header;

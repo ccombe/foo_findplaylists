@@ -21,18 +21,23 @@ std::string track_key(metadb_handle_ptr h) {
     return track_key_for(h->get_path(), h->get_subsong_index());
 }
 
-static std::string track_header(metadb_handle_ptr h) {
-    pfc::string_formatter header;
-    static_api_ptr_t<titleformat_compiler> tc;
-    titleformat_object::ptr tf;
-    if (tc->compile(tf, "[%artist% - ]%title%")) {
-        pfc::string_formatter t;
-        if (h->format_title(nullptr, t, tf, nullptr))
-            header << t.c_str();
+static titleformat_object::ptr get_track_header_formatter() {
+    static titleformat_object::ptr tf;
+    if (tf.is_empty()) {
+        static_api_ptr_t<titleformat_compiler> tc;
+        tc->compile(tf, "[%artist% - ]%title%");
     }
-    if (header.is_empty())
-        header << h->get_path();
-    return header.c_str();
+    return tf;
+}
+
+static std::string track_header(metadb_handle_ptr h) {
+    titleformat_object::ptr tf = get_track_header_formatter();
+    if (tf.is_valid()) {
+        pfc::string_formatter t;
+        if (h->format_title(nullptr, t, tf, nullptr) && !t.is_empty())
+            return t.c_str();
+    }
+    return h->get_path();
 }
 
 // Core: for each selected track, the playlists containing it.
@@ -42,7 +47,9 @@ void find_playlists_for(metadb_handle_list_cref sel, std::vector<track_report> &
     if (selCount == 0)
         return;
 
+    out.reserve(selCount);
     std::unordered_map<std::string, size_t> indexOf;
+    indexOf.reserve(selCount);
     for (t_size i = 0; i < selCount; ++i) {
         track_report r;
         r.header = track_header(sel[i]);
@@ -63,12 +70,7 @@ void find_playlists_for(metadb_handle_list_cref sel, std::vector<track_report> &
             continue;
         const std::string name(plname.c_str());
         for (t_size t = 0; t < items.get_count(); ++t) {
-            const auto it = indexOf.find(track_key(items[t]));
-            if (it == indexOf.end())
-                continue;
-            auto & lists = out[it->second].lists;
-            if (lists.empty() || lists.back() != name)
-                lists.push_back(name); // one entry per playlist
+            record_track_playlist_match(track_key(items[t]), name, indexOf, out);
         }
     }
 }
@@ -95,11 +97,19 @@ static bool is_managed_playlist(const char *name) {
 
 // Dead entry: local file that no longer exists. Streams etc (://) are not
 // verifiable this way and are always treated as live.
-static bool track_is_live(metadb_handle_ptr h) {
+static bool track_is_live(metadb_handle_ptr h, std::unordered_map<std::string, bool> *cache = nullptr) {
     const char *path = h->get_path();
     if (strstr(path, "://") != nullptr)
         return true;
-    return GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES;
+    if (cache != nullptr) {
+        auto it = cache->find(path);
+        if (it != cache->end())
+            return it->second;
+    }
+    const bool live = (GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES);
+    if (cache != nullptr)
+        cache->emplace(path, live);
+    return live;
 }
 
 // Every track occurring more than once anywhere (2+ playlists, or repeated).
@@ -108,6 +118,7 @@ static void scan_duplicates(std::vector<dup_info> & out, std::unordered_map<std:
     handles.clear();
     static_api_ptr_t<playlist_manager> pm;
     std::unordered_map<std::string, size_t> indexOf;
+    std::unordered_map<std::string, bool> liveCache;
     const t_size npl = pm->get_playlist_count();
     metadb_handle_list items;
     pfc::string_formatter plname;
@@ -121,14 +132,13 @@ static void scan_duplicates(std::vector<dup_info> & out, std::unordered_map<std:
             continue;
         const std::string name(plname.c_str());
         for (t_size t = 0; t < items.get_count(); ++t) {
-            if (!track_is_live(items[t]))
+            if (!track_is_live(items[t], &liveCache))
                 continue; // dead entries are cleanup, not dupes
             const std::string k(track_key(items[t]));
             auto it = indexOf.find(k);
             size_t idx;
             if (it == indexOf.end()) {
                 dup_info d;
-                d.header = track_header(items[t]);
                 d.key = k;
                 idx = out.size();
                 indexOf.emplace(k, idx);
@@ -142,9 +152,12 @@ static void scan_duplicates(std::vector<dup_info> & out, std::unordered_map<std:
         }
     }
     std::vector<dup_info> dupes;
-    for (auto & d : out)
-        if (d.occurrences > 1)
+    for (auto & d : out) {
+        if (d.occurrences > 1) {
+            d.header = track_header(handles[d.key]);
             dupes.push_back(std::move(d));
+        }
+    }
     out.swap(dupes);
 }
 
@@ -172,14 +185,14 @@ static void scan_orphans(std::vector<dup_info> & out, std::unordered_map<std::st
     static_api_ptr_t<library_manager>()->get_all_items(all);
     for (t_size t = 0; t < all.get_count(); ++t) {
         const std::string k(track_key(all[t]));
-        if (!placed.count(k)) {
-            dup_info d;
-            d.header = track_header(all[t]);
-            d.key = k;
-            d.occurrences = 0;
-            handles.emplace(k, all[t]);
-            out.push_back(std::move(d));
-        }
+        if (placed.count(k))
+            continue;
+        dup_info d;
+        d.header = track_header(all[t]);
+        d.key = k;
+        d.occurrences = 0;
+        handles.emplace(k, all[t]);
+        out.push_back(std::move(d));
     }
 }
 
@@ -193,6 +206,7 @@ static void scan_active_duplicates(std::vector<dup_info> & out, std::string & pl
     metadb_handle_list items;
     pm->activeplaylist_get_all_items(items);
     std::unordered_map<std::string, size_t> indexOf;
+    std::unordered_map<std::string, metadb_handle_ptr> handles;
     for (t_size t = 0; t < items.get_count(); ++t) {
         if (!track_is_live(items[t]))
             continue;
@@ -201,19 +215,22 @@ static void scan_active_duplicates(std::vector<dup_info> & out, std::string & pl
         size_t idx;
         if (it == indexOf.end()) {
             dup_info d;
-            d.header = track_header(items[t]);
             d.key = k;
             idx = out.size();
             indexOf.emplace(k, idx);
+            handles.emplace(k, items[t]);
             out.push_back(std::move(d));
         } else
             idx = it->second;
         out[idx].occurrences++;
     }
     std::vector<dup_info> dupes;
-    for (auto & d : out)
-        if (d.occurrences > 1)
+    for (auto & d : out) {
+        if (d.occurrences > 1) {
+            d.header = track_header(handles[d.key]);
             dupes.push_back(std::move(d));
+        }
+    }
     out.swap(dupes);
 }
 
@@ -244,12 +261,10 @@ static t_size collect_into(const char *plname, const std::vector<metadb_handle_p
     }
     metadb_handle_list add;
     std::unordered_set<std::string> seen;
+    seen.reserve(tracks.size());
     for (const auto & h : tracks) {
-        const std::string k(track_key(h));
-        if (!seen.count(k)) {
+        if (seen.insert(track_key(h)).second)
             add.add_item(h);
-            seen.insert(k);
-        }
     }
     if (add.get_count() > 0) {
         bit_array_none sel;
@@ -265,6 +280,7 @@ static void scan_dead_tracks(std::vector<dead_entry> & out) {
     const t_size npl = pm->get_playlist_count();
     metadb_handle_list items;
     pfc::string_formatter plname;
+    std::unordered_map<std::string, bool> liveCache;
     for (t_size p = 0; p < npl; ++p) {
         items.remove_all();
         pm->playlist_get_all_items(p, items);
@@ -274,15 +290,15 @@ static void scan_dead_tracks(std::vector<dead_entry> & out) {
         if (is_managed_playlist(plname.c_str()))
             continue;
         for (t_size t = 0; t < items.get_count(); ++t) {
-            if (!track_is_live(items[t])) {
-                dead_entry e;
-                e.playlist = p;
-                e.playlistName = plname.c_str();
-                e.item = t;
-                e.header = track_header(items[t]);
-                e.path = items[t]->get_path();
-                out.push_back(std::move(e));
-            }
+            if (track_is_live(items[t], &liveCache))
+                continue;
+            dead_entry e;
+            e.playlist = p;
+            e.playlistName = plname.c_str();
+            e.item = t;
+            e.header = track_header(items[t]);
+            e.path = items[t]->get_path();
+            out.push_back(std::move(e));
         }
     }
 }
@@ -300,24 +316,26 @@ static t_size apply_dead_removal(const std::vector<dead_entry> & dead, std::vect
         items.remove_all();
         pm->playlist_get_all_items(pl, items);
         bit_array_marks mask(items.get_count());
+        t_size marked = 0;
         size_t j = i;
         while (j < dead.size() && dead[j].playlist == dead[i].playlist &&
                dead[j].playlistName == dead[i].playlistName) {
             if (dead[j].item < (size_t)items.get_count()) {
-                mask.m[dead[j].item] = 1;
+                if (!mask.m[dead[j].item]) {
+                    mask.m[dead[j].item] = 1;
+                    ++marked;
+                }
             }
             ++j;
         }
-        t_size marked = 0;
-        for (size_t k = 0; k < mask.m.size(); ++k)
-            if (mask.m[k])
-                marked++;
-        if (marked > 0) {
-            if (pm->playlist_remove_items(pl, mask))
-                total += marked;
-            else
-                failedPlaylists.push_back(dead[i].playlistName);
+        if (marked == 0) {
+            i = j;
+            continue;
         }
+        if (pm->playlist_remove_items(pl, mask))
+            total += marked;
+        else
+            failedPlaylists.push_back(dead[i].playlistName);
         i = j;
     }
     return total;
@@ -338,26 +356,30 @@ static std::string utf8_from_wide(const wchar_t *w) {
 static bool pick_folder(std::string & out) {
     const HRESULT co = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     const bool uninit = SUCCEEDED(co);
-    bool ok = false;
     IFileOpenDialog *dlg = nullptr;
-    if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dlg)))) {
-        DWORD opts = 0;
-        if (SUCCEEDED(dlg->GetOptions(&opts)))
-            dlg->SetOptions(opts | FOS_PICKFOLDERS | FOS_PATHMUSTEXIST);
-        if (SUCCEEDED(dlg->Show(core_api::get_main_window()))) {
-            IShellItem *item = nullptr;
-            if (SUCCEEDED(dlg->GetResult(&item))) {
-                PWSTR path = nullptr;
-                if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &path))) {
-                    out = utf8_from_wide(path);
-                    ok = !out.empty();
-                    CoTaskMemFree(path);
-                }
-                item->Release();
-            }
-        }
-        dlg->Release();
+    if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dlg)))) {
+        if (uninit)
+            CoUninitialize();
+        return false;
     }
+
+    bool ok = false;
+    DWORD opts = 0;
+    if (SUCCEEDED(dlg->GetOptions(&opts)))
+        dlg->SetOptions(opts | FOS_PICKFOLDERS | FOS_PATHMUSTEXIST);
+    if (SUCCEEDED(dlg->Show(core_api::get_main_window()))) {
+        IShellItem *item = nullptr;
+        if (SUCCEEDED(dlg->GetResult(&item))) {
+            PWSTR path = nullptr;
+            if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &path))) {
+                out = utf8_from_wide(path);
+                ok = !out.empty();
+                CoTaskMemFree(path);
+            }
+            item->Release();
+        }
+    }
+    dlg->Release();
     if (uninit)
         CoUninitialize();
     return ok;
@@ -435,6 +457,45 @@ static void run_export_all_impl(pfc::string_base & msg) {
     msg << head.c_str();
 }
 
+static std::string prompt_save_playlist_path(const char *playlistName) {
+    const HRESULT co = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    const bool uninit = SUCCEEDED(co);
+    std::string chosen;
+    IFileSaveDialog *dlg = nullptr;
+    if (FAILED(CoCreateInstance(CLSID_FileSaveDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dlg)))) {
+        if (uninit)
+            CoUninitialize();
+        return chosen;
+    }
+
+    const COMDLG_FILTERSPEC filters[] = {
+        {L"M3U8 Playlist", L"*.m3u8"},
+        {L"M3U Playlist", L"*.m3u"},
+    };
+    dlg->SetFileTypes(2, filters);
+    dlg->SetFileTypeIndex(1);
+    pfc::string_formatter sug;
+    sug << safe_filename(playlistName).c_str() << ".m3u8";
+    wchar_t wsug[MAX_PATH] = {};
+    MultiByteToWideChar(CP_UTF8, 0, sug.c_str(), -1, wsug, MAX_PATH);
+    dlg->SetFileName(wsug);
+    if (SUCCEEDED(dlg->Show(core_api::get_main_window()))) {
+        IShellItem *item = nullptr;
+        if (SUCCEEDED(dlg->GetResult(&item))) {
+            PWSTR path = nullptr;
+            if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &path))) {
+                chosen = utf8_from_wide(path);
+                CoTaskMemFree(path);
+            }
+            item->Release();
+        }
+    }
+    dlg->Release();
+    if (uninit)
+        CoUninitialize();
+    return chosen;
+}
+
 static void run_export_active_impl(pfc::string_base & msg) {
     static_api_ptr_t<playlist_manager> pm;
     pfc::string_formatter plname;
@@ -442,41 +503,13 @@ static void run_export_active_impl(pfc::string_base & msg) {
         msg << "No active playlist.\n";
         return;
     }
-    const HRESULT co = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-    const bool uninit = SUCCEEDED(co);
-    std::string chosen;
-    IFileSaveDialog *dlg = nullptr;
-    if (SUCCEEDED(CoCreateInstance(CLSID_FileSaveDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dlg)))) {
-        const COMDLG_FILTERSPEC filters[] = {
-            {L"M3U8 Playlist", L"*.m3u8"},
-            {L"M3U Playlist", L"*.m3u"},
-        };
-        dlg->SetFileTypes(2, filters);
-        dlg->SetFileTypeIndex(1);
-        pfc::string_formatter sug;
-        sug << safe_filename(plname.c_str()).c_str() << ".m3u8";
-        wchar_t wsug[MAX_PATH] = {};
-        MultiByteToWideChar(CP_UTF8, 0, sug.c_str(), -1, wsug, MAX_PATH);
-        dlg->SetFileName(wsug);
-        if (SUCCEEDED(dlg->Show(core_api::get_main_window()))) {
-            IShellItem *item = nullptr;
-            if (SUCCEEDED(dlg->GetResult(&item))) {
-                PWSTR path = nullptr;
-                if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &path))) {
-                    chosen = utf8_from_wide(path);
-                    CoTaskMemFree(path);
-                }
-                item->Release();
-            }
-        }
-        dlg->Release();
-    }
-    if (uninit)
-        CoUninitialize();
+
+    const std::string chosen = prompt_save_playlist_path(plname.c_str());
     if (chosen.empty()) {
         msg << "Export cancelled.\n";
         return;
     }
+
     metadb_handle_list items;
     pm->activeplaylist_get_all_items(items);
     abort_callback_dummy abort;
@@ -600,52 +633,55 @@ class ctx_find_in_playlists : public contextmenu_item_v2 {
     GUID get_parent() override { return contextmenu_groups::root; }
     t_enabled_state get_enabled_state(unsigned) override { return DEFAULT_ON; }
     contextmenu_item_node_root *instantiate_item(unsigned, metadb_handle_list_cref data, const GUID &) override {
-        std::vector<menu_entry> entries;
         if (data.get_count() == 0) {
+            std::vector<menu_entry> entries;
             entries.push_back(menu_entry{"(no tracks selected)"});
             entries.back().disabled = true;
-        } else {
-            std::vector<track_report> reports;
-            find_playlists_for(data, reports);
-            const bool multi = reports.size() > 1;
-            for (const auto & r : reports) {
-                std::vector<menu_entry> kids;
-                if (r.lists.empty()) {
-                    kids.push_back(menu_entry{"(not in any playlist)"});
-                    kids.back().disabled = true;
-                } else {
-                    for (const auto & n : r.lists) {
-                        menu_entry e;
-                        e.label = n;
-                        e.playlist = n;
-                        e.key = r.key;
-                        kids.push_back(std::move(e));
-                    }
+            return new node_root(std::move(entries));
+        }
+
+        std::vector<track_report> reports;
+        find_playlists_for(data, reports);
+        const bool multi = reports.size() > 1;
+        std::vector<menu_entry> entries;
+        for (const auto & r : reports) {
+            std::vector<menu_entry> kids;
+            if (r.lists.empty()) {
+                kids.push_back(menu_entry{"(not in any playlist)"});
+                kids.back().disabled = true;
+            } else {
+                for (const auto & n : r.lists) {
+                    menu_entry e;
+                    e.label = n;
+                    e.playlist = n;
+                    e.key = r.key;
+                    kids.push_back(std::move(e));
                 }
-                if (multi) {
-                    menu_entry group;
-                    group.label = r.header;
-                    group.isPopup = true;
-                    group.children = std::move(kids);
-                    entries.push_back(std::move(group));
-                } else {
-                    entries.insert(entries.end(), std::make_move_iterator(kids.begin()),
-                                   std::make_move_iterator(kids.end()));
-                }
+            }
+            if (multi) {
+                menu_entry group;
+                group.label = r.header;
+                group.isPopup = true;
+                group.children = std::move(kids);
+                entries.push_back(std::move(group));
+            } else {
+                entries.insert(entries.end(), std::make_move_iterator(kids.begin()),
+                               std::make_move_iterator(kids.end()));
             }
         }
         return new node_root(std::move(entries));
     }
     void item_execute_simple(unsigned, const GUID &, metadb_handle_list_cref data, const GUID &) override {
         // Shortcut invocation path (no menu): classic popup report.
-        pfc::string_formatter msg;
         if (data.get_count() == 0) {
-            msg << "No tracks selected.";
-        } else {
-            std::vector<track_report> reports;
-            find_playlists_for(data, reports);
-            format_report(reports, msg);
+            popup_message::g_show("No tracks selected.", "Find in Playlists");
+            return;
         }
+
+        pfc::string_formatter msg;
+        std::vector<track_report> reports;
+        find_playlists_for(data, reports);
+        format_report(reports, msg);
         popup_message::g_show(msg, "Find in Playlists");
     }
 };
@@ -808,15 +844,18 @@ class main_find_playing : public mainmenu_commands {
     static void run_find_playing() {
         pfc::string_formatter msg;
         metadb_handle_ptr now;
-        if (static_api_ptr_t<playback_control>()->get_now_playing(now)) {
-            metadb_handle_list sel;
-            sel.add_item(now);
-            std::vector<track_report> reports;
-            find_playlists_for(sel, reports);
-            format_report(reports, msg);
-        } else {
+        if (!static_api_ptr_t<playback_control>()->get_now_playing(now)) {
             msg << "Nothing playing.";
+            report("Find in Playlists: playing track", msg);
+            confirm("Find in Playlists", msg);
+            return;
         }
+
+        metadb_handle_list sel;
+        sel.add_item(now);
+        std::vector<track_report> reports;
+        find_playlists_for(sel, reports);
+        format_report(reports, msg);
         report("Find in Playlists: playing track", msg);
         confirm("Find in Playlists", msg);
     }
