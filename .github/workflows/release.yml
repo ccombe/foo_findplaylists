@@ -18,6 +18,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   release:
@@ -153,7 +154,8 @@ jobs:
             $branch = "release/bump-version$($ver -replace '\.', '-')"
             git checkout -b $branch
             git commit -m "chore(release): bump version to $ver"
-            git push origin $branch
+            # force: a previous attempt may have left the branch behind
+            git push origin $branch --force
             $prUrl = gh pr create --title "chore(release): bump version to $ver" --body "Automated version bump for v$ver. Auto-merges once checks pass."
             gh pr merge $prUrl --auto --squash
             Write-Host "Opened auto-merge PR for version bump: $prUrl"
