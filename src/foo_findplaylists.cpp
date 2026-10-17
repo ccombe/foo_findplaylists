@@ -8,6 +8,7 @@
 
 #include "stdafx.h"
 #include "logic.h"
+#include "scanner.h"
 #include "version.h"
 
 DECLARE_COMPONENT_VERSION("Find in Playlists", FIP_VERSION, "Shows which playlists contain the selected track(s).");
