@@ -1,0 +1,145 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+    tags-ignore: ["v*"]
+  pull_request:
+
+jobs:
+  quality:
+    name: Code Quality & Complexity (CRAP Score)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Check code formatting (clang-format & prettier)
+        run: npm run format:check
+
+      - name: Run code quality, type safety, and CRAP score check
+        run: python3 scripts/check_quality.py --ci
+
+  build:
+    name: Build & Test Component
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Build component
+        run: msbuild foo_findplaylists.vcxproj /p:Configuration=Release /p:Platform=x64 /v:minimal
+
+      - name: Build tests
+        run: msbuild tests/tests.vcxproj /p:Configuration=Release /p:Platform=x64 /v:minimal
+
+      - name: Run tests
+        run: .\tests\x64\Release\tests.exe
+
+      - name: Predict Semantic Version & Package Component
+        id: package
+        shell: pwsh
+        run: |
+          git fetch --tags --force
+          $tags = git tag -l --sort=-v:refname "v*"
+          $latestTag = if ($tags) { ($tags -split "`r?`n")[0].Trim() } else { $null }
+
+          $baseVer = "1.4.0"
+          if ($latestTag) {
+            $raw = $latestTag.TrimStart('v')
+            $parts = $raw.Split('.')
+            while ($parts.Count -lt 3) { $parts += '0' }
+            $baseVer = $parts[0..2] -join '.'
+          }
+
+          # Check PR commits / range
+          $range = if ($latestTag) { "$latestTag..HEAD" } else { "HEAD" }
+          $commits = @(git log $range --pretty=format:"%s%n%b")
+          $commitText = ($commits -join "`n").Trim()
+
+          $parts = $baseVer.Split('.')
+          [int]$major = $parts[0]
+          [int]$minor = $parts[1]
+          [int]$patch = $parts[2]
+
+          $bump = "patch"
+          if ($commitText -match "(?m)^[a-zA-Z]+(\([^\)]+\))?!:" -or $commitText -match "BREAKING CHANGE") {
+            $bump = "major"
+            $major++
+            $minor = 0
+            $patch = 0
+          } elseif ($commitText -match "(?m)^feat(\([^\)]+\))?:") {
+            $bump = "minor"
+            $minor++
+            $patch = 0
+          } else {
+            $patch++
+          }
+
+          $predictedVer = if ($latestTag) { "$major.$minor.$patch" } else { $baseVer }
+
+          $prNum = "${{ github.event.pull_request.number }}"
+          $label = if ($prNum) { "pr$prNum" } else { "ci-$($env:GITHUB_RUN_NUMBER)" }
+          $pkgName = "foo_findplaylists-$predictedVer-$label.fb2k-component"
+          Compress-Archive -Path x64\Release\foo_findplaylists.dll -DestinationPath $pkgName -Force
+
+          Write-Output "pkg_name=$pkgName" >> $env:GITHUB_OUTPUT
+          Write-Output "predicted_version=$predictedVer" >> $env:GITHUB_OUTPUT
+          Write-Output "bump_type=$bump" >> $env:GITHUB_OUTPUT
+          Write-Host "Packaged component: $pkgName (Predicted next version: $predictedVer, bump: $bump)"
+
+      - name: Upload foobar2000 component package
+        uses: actions/upload-artifact@v7
+        with:
+          name: foo_findplaylists-component
+          path: "*.fb2k-component"
+          if-no-files-found: error
+
+      - name: Upload DLL artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: foo_findplaylists-dll
+          path: x64/Release/foo_findplaylists.dll
+          if-no-files-found: error
+
+      - name: PR Release Check & Summary
+        shell: pwsh
+        run: |
+          $predictedVer = "${{ steps.package.outputs.predicted_version }}"
+          $pkgName = "${{ steps.package.outputs.pkg_name }}"
+          $bump = "${{ steps.package.outputs.bump_type }}"
+
+          $lines = @(
+            "## 📦 Component PR Build & Release Status",
+            "",
+            "- **Test Result**: ✅ All unit tests passed",
+            ("- **Semantic Bump Detected**: ``{0}``" -f $bump),
+            ("- **Next Release Version Upon Merge**: ``v{0}``" -f $predictedVer),
+            ("- **Test Component Package**: ``{0}`` (downloadable from Artifacts above)" -f $pkgName),
+            "",
+            "> 🚀 **Automated Release**: When this PR is merged to master, GitHub Actions will automatically tag and publish this release."
+          )
+
+          $lines -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8

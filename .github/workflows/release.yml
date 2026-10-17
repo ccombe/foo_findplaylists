@@ -1,0 +1,242 @@
+name: Release
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: "Manual bump type override (patch, minor, major, or auto)"
+        required: false
+        default: "auto"
+        type: choice
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Semantic Release & Publish
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Calculate Semantic Version
+        id: semver
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MANUAL_BUMP: ${{ github.event.inputs.bump_type }}
+        run: |
+          git fetch --tags --force
+          $tags = git tag -l --sort=-v:refname "v*"
+          $latestTag = if ($tags) { ($tags -split "`r?`n")[0].Trim() } else { $null }
+
+          if (-not $latestTag) {
+            Write-Host "No existing release tags found. Setting initial baseline version."
+            $content = Get-Content src/version.h -Raw
+            $m = [regex]::Match($content, 'FIP_VERSION\s+"([^"]+)"')
+            $base = if ($m.Success) { $m.Groups[1].Value } else { "1.4.0" }
+            $parts = $base.Split('.')
+            while ($parts.Count -lt 3) { $parts += '0' }
+            $newVersion = ($parts[0..2] -join '.')
+            $newTag = "v$newVersion"
+            $range = "HEAD"
+          } else {
+            Write-Host "Latest release tag found: $latestTag"
+            $range = "$latestTag..HEAD"
+            $commits = @(git log $range --pretty=format:"%s%n%b")
+            $commitText = ($commits -join "`n").Trim()
+            if (-not $commitText) {
+              Write-Host "No new commits since $latestTag. Skipping release."
+              Write-Output "should_release=false" >> $env:GITHUB_OUTPUT
+              exit 0
+            }
+
+            $raw = $latestTag.TrimStart('v')
+            $parts = $raw.Split('.')
+            while ($parts.Count -lt 3) { $parts += '0' }
+            [int]$major = $parts[0]
+            [int]$minor = $parts[1]
+            [int]$patch = $parts[2]
+
+            $bump = if ($env:MANUAL_BUMP -and $env:MANUAL_BUMP -ne 'auto') { $env:MANUAL_BUMP } else { $null }
+            if (-not $bump) {
+              if ($commitText -match "(?m)^[a-zA-Z]+(\([^\)]+\))?!:" -or $commitText -match "BREAKING CHANGE") {
+                $bump = "major"
+              } elseif ($commitText -match "(?m)^feat(\([^\)]+\))?:") {
+                $bump = "minor"
+              } else {
+                $bump = "patch"
+              }
+            }
+
+            Write-Host "Determined bump type: $bump"
+            if ($bump -eq "major") {
+              $major++
+              $minor = 0
+              $patch = 0
+            } elseif ($bump -eq "minor") {
+              $minor++
+              $patch = 0
+            } else {
+              $patch++
+            }
+
+            $newVersion = "$major.$minor.$patch"
+            $newTag = "v$newVersion"
+          }
+
+          Write-Output "should_release=true" >> $env:GITHUB_OUTPUT
+          Write-Output "version=$newVersion" >> $env:GITHUB_OUTPUT
+          Write-Output "tag=$newTag" >> $env:GITHUB_OUTPUT
+          Write-Output "range=$range" >> $env:GITHUB_OUTPUT
+          Write-Host "Calculated next release: $newVersion (tag: $newTag)"
+
+      - name: Update version.h and CHANGELOG.md
+        if: steps.semver.outputs.should_release == 'true'
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.semver.outputs.version }}"
+          $today = (Get-Date).ToString("yyyy-MM-dd")
+
+          # 1. Update src/version.h
+          $vh = Get-Content src/version.h -Raw
+          $vhUpdated = [regex]::Replace($vh, 'FIP_VERSION\s+"[^"]+"', "FIP_VERSION `"$ver`"")
+          $vhUpdated | Out-File src/version.h -Encoding utf8
+
+          # 2. Update CHANGELOG.md
+          $cl = Get-Content CHANGELOG.md -Raw
+          $shortVer = $ver -replace '\.0$', ''
+          $hasHeader = ($cl -match [regex]::Escape("## [$ver]")) -or ($cl -match [regex]::Escape("## [$shortVer]"))
+          if (-not $hasHeader) {
+            $range = "${{ steps.semver.outputs.range }}"
+            $commitLines = @(git log $range --pretty=format:"- %s (%h)")
+            $commitBody = if ($commitLines.Count -gt 0) { $commitLines -join "`n" } else { "- Maintenance and updates." }
+
+            $newEntry = "## [Unreleased]`n`n## [$ver] - $today`n`n### Changes`n$commitBody"
+            if ($cl -match "(?ms)^## \[Unreleased\].*?(?=^## \[|\z)") {
+              $unreleasedContent = [regex]::Match($cl, "(?ms)^## \[Unreleased\]\s*(.*?)(?=^## \[|\z)").Groups[1].Value.Trim()
+              if ($unreleasedContent -ne "") {
+                $newEntry = "## [Unreleased]`n`n## [$ver] - $today`n`n$unreleasedContent"
+              }
+              $cl = [regex]::Replace($cl, "(?ms)^## \[Unreleased\].*?(?=^## \[|\z)", "$newEntry`n`n")
+            } else {
+              $cl = "## [Unreleased]`n`n## [$ver] - $today`n`n$commitBody`n`n" + $cl
+            }
+            $cl | Out-File CHANGELOG.md -Encoding utf8
+          }
+
+          # 3. Commit and push bump back to repository
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/version.h CHANGELOG.md
+          git diff-index --quiet HEAD
+          if ($LASTEXITCODE -ne 0) {
+            git commit -m "chore(release): bump version to $ver [skip ci]"
+            git push origin HEAD:$env:GITHUB_REF_NAME
+            Write-Host "Pushed version bump commit for v$ver"
+          } else {
+            Write-Host "No file changes needed for version bump."
+          }
+
+      - name: Setup MSBuild
+        if: steps.semver.outputs.should_release == 'true'
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Build component
+        if: steps.semver.outputs.should_release == 'true'
+        run: msbuild foo_findplaylists.vcxproj /p:Configuration=Release /p:Platform=x64 /v:minimal
+
+      - name: Build tests
+        if: steps.semver.outputs.should_release == 'true'
+        run: msbuild tests/tests.vcxproj /p:Configuration=Release /p:Platform=x64 /v:minimal
+
+      - name: Run tests
+        if: steps.semver.outputs.should_release == 'true'
+        run: .\tests\x64\Release\tests.exe
+
+      - name: Package foobar2000 component & checksum
+        if: steps.semver.outputs.should_release == 'true'
+        id: package
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.semver.outputs.version }}"
+          $pkg = "foo_findplaylists-$ver.fb2k-component"
+          Compress-Archive -Path x64\Release\foo_findplaylists.dll -DestinationPath $pkg -Force
+          $hash = (Get-FileHash -Path $pkg -Algorithm SHA256).Hash
+          "$hash *$pkg" | Out-File -FilePath "$pkg.sha256" -Encoding ascii
+          Write-Output "pkg_name=$pkg" >> $env:GITHUB_OUTPUT
+          Write-Output "pkg_hash=$hash" >> $env:GITHUB_OUTPUT
+          Write-Host "Packaged $pkg with SHA-256 $hash"
+
+      - name: Prepare release notes
+        if: steps.semver.outputs.should_release == 'true'
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.semver.outputs.version }}"
+          $pkg = "${{ steps.package.outputs.pkg_name }}"
+          $hash = "${{ steps.package.outputs.pkg_hash }}"
+          $repo = $env:GITHUB_REPOSITORY
+          $downloadUrl = "https://github.com/$repo/releases/download/v$ver/$pkg"
+
+          $cl = Get-Content CHANGELOG.md -Raw
+          $shortVer = $ver -replace '\.0$', ''
+          $m = [regex]::Match($cl, "(?ms)^## \[($ver|$shortVer)\].*?(?=^## \[|\z)")
+          $changelogSection = if ($m.Success) { $m.Value.Trim() } else { "### Changes`n`nSee commit history below." }
+
+          $lines = @(
+            "### 📦 Download & Installation",
+            "",
+            "- **Component Package**: [$pkg]($downloadUrl)",
+            "- **Target Platform**: foobar2000 v2.0+ (64-bit Windows)",
+            "",
+            "#### How to install:",
+            "1. Download **[$pkg]($downloadUrl)**.",
+            "2. In foobar2000, go to **File > Preferences > Components**.",
+            ("3. Click **Install...**, select `{0}`, and click **Apply** / restart foobar2000." -f $pkg),
+            "",
+            "---",
+            "",
+            "### 📋 Published Changelog",
+            "",
+            $changelogSection,
+            "",
+            "*See [CHANGELOG.md](https://github.com/$repo/blob/master/CHANGELOG.md) for full version history.*",
+            "",
+            "<details>",
+            "<summary><b>SHA-256 Checksum</b></summary>",
+            "",
+            '```',
+            "$hash  $pkg",
+            '```',
+            "",
+            "</details>"
+          )
+
+          $lines -join "`n" | Out-File -FilePath notes.md -Encoding utf8
+          Write-Host "Generated release notes:"
+          Get-Content notes.md
+
+      - name: Publish GitHub Release
+        if: steps.semver.outputs.should_release == 'true'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.semver.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: foo_findplaylists v${{ steps.semver.outputs.version }}
+          body_path: notes.md
+          generate_release_notes: true
+          make_latest: true
+          files: |
+            foo_findplaylists-*.fb2k-component
+            foo_findplaylists-*.fb2k-component.sha256

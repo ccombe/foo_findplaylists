@@ -1,0 +1,6 @@
+{
+  "src/**/*.{cpp,h}": ["clang-format -i"],
+  "tests/**/*.{cpp,h}": ["clang-format -i"],
+  "*.{md,json}": ["prettier --write"],
+  ".github/**/*.{yml,yaml}": ["prettier --write"]
+}
