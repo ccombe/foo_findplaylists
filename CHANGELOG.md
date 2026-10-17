@@ -96,4 +96,3 @@ Versions match `FIP_VERSION` in `src/version.h`.
 - Right-click track(s) to see which playlists contain them (popup report).
 - Library command reporting the playlists holding the now-playing track.
 - Properties dialog gains a Playlists group for the selected track(s).
-
