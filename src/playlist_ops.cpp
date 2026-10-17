@@ -22,7 +22,7 @@ t_size find_or_create_playlist(const char *name) {
     return idx;
 }
 
-t_size collect_into(const char *plname, const std::vector<metadb_handle_ptr> &tracks) {
+t_size collect_into(const char *plname, const std::vector<metadb_handle_ptr> & tracks) {
     static_api_ptr_t<playlist_manager> pm;
     const t_size pl = find_or_create_playlist(plname);
     if (pl == ~0)
@@ -38,7 +38,7 @@ t_size collect_into(const char *plname, const std::vector<metadb_handle_ptr> &tr
     metadb_handle_list add;
     std::unordered_set<std::string> seen;
     seen.reserve(tracks.size());
-    for (const auto &h : tracks) {
+    for (const auto & h : tracks) {
         std::string key = track_key(h);
         if (seen.insert(key).second)
             add.add_item(h);
@@ -51,7 +51,7 @@ t_size collect_into(const char *plname, const std::vector<metadb_handle_ptr> &tr
     return add.get_count();
 }
 
-t_size apply_dead_removal(const std::vector<dead_entry> &dead, std::vector<std::string> &failedPlaylists) {
+t_size apply_dead_removal(const std::vector<dead_entry> & dead, std::vector<std::string> & failedPlaylists) {
     failedPlaylists.clear();
     if (dead.empty())
         return 0;

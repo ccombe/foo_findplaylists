@@ -31,7 +31,7 @@ struct menu_entry {
 class node_leaf : public contextmenu_item_node_leaf {
   public:
     node_leaf(menu_entry e) : m_e(std::move(e)) {}
-    bool get_display_data(pfc::string_base &out, unsigned &flags, metadb_handle_list_cref, const GUID &) override {
+    bool get_display_data(pfc::string_base & out, unsigned & flags, metadb_handle_list_cref, const GUID &) override {
         out = m_e.label.c_str();
         flags = m_e.disabled ? FLAG_DISABLED : 0;
         return true;
@@ -52,14 +52,14 @@ class node_popup : public contextmenu_item_node_popup {
   public:
     node_popup(std::string label, std::vector<menu_entry> children)
         : m_label(std::move(label)), m_children(std::move(children)) {}
-    bool get_display_data(pfc::string_base &out, unsigned &flags, metadb_handle_list_cref, const GUID &) override {
+    bool get_display_data(pfc::string_base & out, unsigned & flags, metadb_handle_list_cref, const GUID &) override {
         out = m_label.c_str();
         flags = 0;
         return true;
     }
     t_size get_children_count() override { return m_children.size(); }
     contextmenu_item_node *get_child(t_size i) override {
-        const menu_entry &e = m_children[i];
+        const menu_entry & e = m_children[i];
         if (e.isPopup)
             return new node_popup(e.label, e.children);
         return new node_leaf(e);
@@ -75,14 +75,14 @@ class node_popup : public contextmenu_item_node_popup {
 class node_root : public contextmenu_item_node_root_popup {
   public:
     node_root(std::vector<menu_entry> children) : m_children(std::move(children)) {}
-    bool get_display_data(pfc::string_base &out, unsigned &flags, metadb_handle_list_cref, const GUID &) override {
+    bool get_display_data(pfc::string_base & out, unsigned & flags, metadb_handle_list_cref, const GUID &) override {
         out = "Find in Playlists";
         flags = 0;
         return true;
     }
     t_size get_children_count() override { return m_children.size(); }
     contextmenu_item_node *get_child(t_size i) override {
-        const menu_entry &e = m_children[i];
+        const menu_entry & e = m_children[i];
         if (e.isPopup)
             return new node_popup(e.label, e.children);
         return new node_leaf(e);
@@ -98,8 +98,8 @@ class ctx_find_in_playlists : public contextmenu_item_v2 {
   public:
     unsigned get_num_items() override { return 1; }
     GUID get_item_guid(unsigned) override { return guid_ctx_item; }
-    void get_item_name(unsigned, pfc::string_base &out) override { out = "Find in Playlists"; }
-    bool get_item_description(unsigned, pfc::string_base &out) override {
+    void get_item_name(unsigned, pfc::string_base & out) override { out = "Find in Playlists"; }
+    bool get_item_description(unsigned, pfc::string_base & out) override {
         out = "Lists every playlist containing the selected track(s).";
         return true;
     }
@@ -117,13 +117,13 @@ class ctx_find_in_playlists : public contextmenu_item_v2 {
         find_playlists_for(data, reports);
         const bool multi = reports.size() > 1;
         std::vector<menu_entry> entries2;
-        for (const auto &r : reports) {
+        for (const auto & r : reports) {
             std::vector<menu_entry> kids;
             if (r.lists.empty()) {
                 kids.push_back(menu_entry{"(not in any playlist)"});
                 kids.back().disabled = true;
             } else {
-                for (const auto &n : r.lists) {
+                for (const auto & n : r.lists) {
                     menu_entry e;
                     e.label = n;
                     e.playlist = n;

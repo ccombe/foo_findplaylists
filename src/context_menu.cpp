@@ -14,12 +14,11 @@ struct menu_entry {
 };
 
 // Jump to a track inside a playlist: activate it, select + focus the track.
-void goto_track_in_playlist(const std::string &playlist, const std::string &key);
 
 class node_leaf : public contextmenu_item_node_leaf {
   public:
     node_leaf(menu_entry e) : m_e(std::move(e)) {}
-    bool get_display_data(pfc::string_base &out, unsigned &flags, metadb_handle_list_cref, const GUID &) override {
+    bool get_display_data(pfc::string_base & out, unsigned & flags, metadb_handle_list_cref, const GUID &) override {
         out = m_e.label.c_str();
         flags = m_e.disabled ? FLAG_DISABLED : 0;
         return true;
@@ -40,14 +39,14 @@ class node_popup : public contextmenu_item_node_popup {
   public:
     node_popup(std::string label, std::vector<menu_entry> children)
         : m_label(std::move(label)), m_children(std::move(children)) {}
-    bool get_display_data(pfc::string_base &out, unsigned &flags, metadb_handle_list_cref, const GUID &) override {
+    bool get_display_data(pfc::string_base & out, unsigned & flags, metadb_handle_list_cref, const GUID &) override {
         out = m_label.c_str();
         flags = 0;
         return true;
     }
     t_size get_children_count() override { return m_children.size(); }
     contextmenu_item_node *get_child(t_size i) override {
-        const menu_entry &e = m_children[i];
+        const menu_entry & e = m_children[i];
         if (e.isPopup)
             return new node_popup(e.label, e.children);
         return new node_leaf(e);
@@ -63,14 +62,14 @@ class node_popup : public contextmenu_item_node_popup {
 class node_root : public contextmenu_item_node_root_popup {
   public:
     node_root(std::vector<menu_entry> children) : m_children(std::move(children)) {}
-    bool get_display_data(pfc::string_base &out, unsigned &flags, metadb_handle_list_cref, const GUID &) override {
+    bool get_display_data(pfc::string_base & out, unsigned & flags, metadb_handle_list_cref, const GUID &) override {
         out = "Find in Playlists";
         flags = 0;
         return true;
     }
     t_size get_children_count() override { return m_children.size(); }
     contextmenu_item_node *get_child(t_size i) override {
-        const menu_entry &e = m_children[i];
+        const menu_entry & e = m_children[i];
         if (e.isPopup)
             return new node_popup(e.label, e.children);
         return new node_leaf(e);
@@ -86,8 +85,8 @@ class ctx_find_in_playlists : public contextmenu_item_v2 {
   public:
     unsigned get_num_items() override { return 1; }
     GUID get_item_guid(unsigned) override { return guid_ctx_item; }
-    void get_item_name(unsigned, pfc::string_base &out) override { out = "Find in Playlists"; }
-    bool get_item_description(unsigned, pfc::string_base &out) override {
+    void get_item_name(unsigned, pfc::string_base & out) override { out = "Find in Playlists"; }
+    bool get_item_description(unsigned, pfc::string_base & out) override {
         out = "Lists every playlist containing the selected track(s).";
         return true;
     }
@@ -105,13 +104,13 @@ class ctx_find_in_playlists : public contextmenu_item_v2 {
         find_playlists_for(data, reports);
         const bool multi = reports.size() > 1;
         std::vector<menu_entry> entries2;
-        for (const auto &r : reports) {
+        for (const auto & r : reports) {
             std::vector<menu_entry> kids;
             if (r.lists.empty()) {
                 kids.push_back(menu_entry{"(not in any playlist)"});
                 kids.back().disabled = true;
             } else {
-                for (const auto &n : r.lists) {
+                for (const auto & n : r.lists) {
                     menu_entry e;
                     e.label = n;
                     e.playlist = n;
@@ -149,21 +148,4 @@ class ctx_find_in_playlists : public contextmenu_item_v2 {
 
 static contextmenu_item_factory_t<ctx_find_in_playlists> g_ctx_factory;
 
-// Jump to a track inside a playlist: activate it, select + focus the track.
-void goto_track_in_playlist(const std::string &playlist, const std::string &key) {
-    static_api_ptr_t<playlist_manager> pm;
-    const t_size pl = pm->find_playlist(playlist.c_str());
-    if (pl == ~0)
-        return;
-    metadb_handle_list items;
-    pm->playlist_get_all_items(pl, items);
-    for (t_size t = 0; t < items.get_count(); ++t) {
-        if (track_key(items[t]) == key) {
-            pm->set_active_playlist(pl);
-            pm->playlist_set_selection_single(pl, t, true);
-            pm->playlist_set_focus_item(pl, t);
-            pm->playlist_ensure_visible(pl, t);
-            return;
-        }
-    }
-}
+// goto_track_in_playlist is defined in scanner.cpp

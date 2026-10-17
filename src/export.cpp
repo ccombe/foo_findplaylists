@@ -14,7 +14,7 @@ static std::string utf8_from_wide(const wchar_t *w) {
     return s;
 }
 
-[[nodiscard]] bool pick_folder(std::string &out) {
+[[nodiscard]] bool pick_folder(std::string & out) {
     const HRESULT co = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     const bool uninit = SUCCEEDED(co);
     bool ok = false;
@@ -108,7 +108,7 @@ static std::string utf8_from_wide(const wchar_t *w) {
     return chosen;
 }
 
-void run_export_all_impl(pfc::string_base &msg) {
+void run_export_all_impl(pfc::string_base & msg) {
     std::string folder;
     if (!pick_folder(folder)) {
         msg << "Export cancelled.\n";
@@ -142,7 +142,7 @@ void run_export_all_impl(pfc::string_base &msg) {
         try {
             playlist_loader::g_save_playlist(path.c_str(), items, abort);
             ++ok;
-        } catch (const std::exception &e) {
+        } catch (const std::exception & e) {
             body << "FAILED: " << plname.c_str() << " (" << e.what() << ")\n";
         } catch (...) {
             body << "FAILED: " << plname.c_str() << "\n";
@@ -156,7 +156,7 @@ void run_export_all_impl(pfc::string_base &msg) {
     msg << head.c_str();
 }
 
-void run_export_active_impl(pfc::string_base &msg) {
+void run_export_active_impl(pfc::string_base & msg) {
     static_api_ptr_t<playlist_manager> pm;
     pfc::string_formatter plname;
     if (!pm->activeplaylist_get_name(plname)) {
@@ -175,9 +175,8 @@ void run_export_active_impl(pfc::string_base &msg) {
     abort_callback_dummy abort;
     try {
         playlist_loader::g_save_playlist(chosen.c_str(), items, abort);
-        msg << "Exported '" << plname.c_str() << "' (" << items.get_count() << " tracks) to " << chosen.c_str()
-            << "\n";
-    } catch (const std::exception &e) {
+        msg << "Exported '" << plname.c_str() << "' (" << items.get_count() << " tracks) to " << chosen.c_str() << "\n";
+    } catch (const std::exception & e) {
         msg << "FAILED: '" << plname.c_str() << "' (" << e.what() << ")\n";
     } catch (...) {
         msg << "FAILED: '" << plname.c_str() << "'\n";

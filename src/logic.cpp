@@ -31,7 +31,7 @@ bool has_invalid_tag_chars(const char *field) {
         return false;
     static const char *invalidChars = "<>:\"/\\|?*";
     for (const char *p = field; *p; ++p) {
-        if (static_cast<unsigned char>(*p) < 0x20)  // control characters
+        if (static_cast<unsigned char>(*p) < 0x20) // control characters
             return true;
         if (strchr(invalidChars, *p))
             return true;
@@ -39,14 +39,14 @@ bool has_invalid_tag_chars(const char *field) {
     return false;
 }
 
-bool record_track_playlist_match(const std::string &key, const std::string &playlistName,
-                                 const std::unordered_map<std::string, size_t> &indexOf,
-                                 std::vector<track_report> &reports) {
+bool record_track_playlist_match(const std::string & key, const std::string & playlistName,
+                                 const std::unordered_map<std::string, size_t> & indexOf,
+                                 std::vector<track_report> & reports) {
     const auto it = indexOf.find(key);
     if (it == indexOf.end())
         return false;
 
-    auto &lists = reports[it->second].lists;
+    auto & lists = reports[it->second].lists;
     if (!lists.empty() && lists.back() == playlistName)
         return false;
 
@@ -54,7 +54,7 @@ bool record_track_playlist_match(const std::string &key, const std::string &play
     return true;
 }
 
-static void append_track_report_entry(pfc::string_base &f, const track_report &r) {
+static void append_track_report_entry(pfc::string_base & f, const track_report & r) {
     f << r.header.c_str() << "\n";
     if (r.lists.empty()) {
         f << "  (not in any playlist)\n";
@@ -62,37 +62,37 @@ static void append_track_report_entry(pfc::string_base &f, const track_report &r
     }
     const size_t count = r.lists.size();
     f << "  Found in " << count << (count == 1 ? " playlist:\n" : " playlists:\n");
-    for (const auto &n : r.lists)
+    for (const auto & n : r.lists)
         f << "  - " << n.c_str() << "\n";
 }
 
-void format_report(const std::vector<track_report> &reports, pfc::string_base &out) {
+void format_report(const std::vector<track_report> & reports, pfc::string_base & out) {
     if (reports.empty())
         return;
 
-    for (const auto &r : reports)
+    for (const auto & r : reports)
         append_track_report_entry(out, r);
 }
 
-void format_dead_report(const std::vector<dead_entry> &dead, bool removed, pfc::string_base &out) {
+void format_dead_report(const std::vector<dead_entry> & dead, bool removed, pfc::string_base & out) {
     const std::vector<std::string> none;
     format_dead_report(dead, removed, none, out);
 }
 
-static void append_dead_entry_item(pfc::string_base &body, const dead_entry &entry) {
+static void append_dead_entry_item(pfc::string_base & body, const dead_entry & entry) {
     body << "  - " << entry.header.c_str();
     if (!entry.path.empty())
         body << "\n      " << entry.path.c_str();
     body << "\n";
 }
 
-static void append_playlist_group_header(pfc::string_base &body, const std::string &cur, size_t count,
-                                         const std::vector<std::string> &failedPlaylists) {
+static void append_playlist_group_header(pfc::string_base & body, const std::string & cur, size_t count,
+                                         const std::vector<std::string> & failedPlaylists) {
     const bool failed = std::find(failedPlaylists.begin(), failedPlaylists.end(), cur) != failedPlaylists.end();
     body << cur.c_str() << ": " << count << (failed ? " (REMOVAL FAILED, untouched)" : "") << "\n";
 }
 
-static void append_dead_summary_header(pfc::string_base &head, size_t deadCount, size_t affectedPlaylists,
+static void append_dead_summary_header(pfc::string_base & head, size_t deadCount, size_t affectedPlaylists,
                                        bool removed) {
     head << "Dead tracks " << (removed ? "removed" : "found") << ": " << deadCount << " entries across "
          << affectedPlaylists << " playlists.\n";
@@ -100,8 +100,8 @@ static void append_dead_summary_header(pfc::string_base &head, size_t deadCount,
                      : "No changes made. Run Remove Dead Tracks to apply.\n");
 }
 
-void format_dead_report(const std::vector<dead_entry> &dead, bool removed,
-                        const std::vector<std::string> &failedPlaylists, pfc::string_base &out) {
+void format_dead_report(const std::vector<dead_entry> & dead, bool removed,
+                        const std::vector<std::string> & failedPlaylists, pfc::string_base & out) {
     if (dead.empty()) {
         out << "No dead tracks found. Nothing to do.\n";
         return;
@@ -111,7 +111,7 @@ void format_dead_report(const std::vector<dead_entry> &dead, bool removed,
     size_t affected = 0;
     for (size_t i = 0; i < dead.size();) {
         affected++;
-        const std::string &cur = dead[i].playlistName;
+        const std::string & cur = dead[i].playlistName;
         size_t j = i + 1;
         while (j < dead.size() && dead[j].playlistName == cur)
             ++j;
@@ -122,7 +122,7 @@ void format_dead_report(const std::vector<dead_entry> &dead, bool removed,
 
     // Pass 2: Stream group headers and items directly into out with O(1) group counts
     for (size_t i = 0; i < dead.size();) {
-        const std::string &cur = dead[i].playlistName;
+        const std::string & cur = dead[i].playlistName;
         size_t j = i + 1;
         while (j < dead.size() && dead[j].playlistName == cur)
             ++j;
@@ -149,7 +149,7 @@ std::string safe_filename(const char *name) {
         return "playlist";
 
     std::string s(name);
-    for (char &c : s) {
+    for (char & c : s) {
         if (is_forbidden_filename_char(c))
             c = '_';
     }
@@ -171,7 +171,7 @@ static std::string get_report_file_path() {
 #endif
 }
 
-std::string write_report_file(const char *title, const pfc::string_base &body) {
+std::string write_report_file(const char *title, const pfc::string_base & body) {
     (void)title;
     const std::string path = get_report_file_path();
     FILE *f = fopen(path.c_str(), "w");
@@ -184,10 +184,83 @@ std::string write_report_file(const char *title, const pfc::string_base &body) {
     return path;
 }
 
+bool is_music_file(const char *filename) {
+    if (!filename)
+        return false;
+    const char *dot = strrchr(filename, '.');
+    if (!dot)
+        return false;
+    static const char *musicExts[] = {".mp3", ".flac", ".wav", ".m4a",  ".aac",  ".ogg", ".wma", ".aiff", ".aif",
+                                      ".ape", ".wv",   ".mpc", ".opus", ".dsf",  ".dff", ".mp4", ".m4v",  ".mkv",
+                                      ".avi", ".wmv",  ".mov", ".mpg",  ".mpeg", ".ts",  ".webm"};
+    const size_t numExts = sizeof(musicExts) / sizeof(musicExts[0]);
+    for (size_t i = 0; i < numExts; ++i) {
+        if (stricmp(dot, musicExts[i]) == 0)
+            return true;
+    }
+    return false;
+}
+
+bool is_ignorable_file(const char *filename) {
+    if (!filename)
+        return false;
+    const char *base = filename;
+    const char *slash = strrchr(filename, '\\');
+    if (slash)
+        base = slash + 1;
+    slash = strrchr(base, '/');
+    if (slash)
+        base = slash + 1;
+
+    static const char *ignorableNames[] = {"desktop.ini", ".ds_store", "thumbs.db", ".nfo", ".sfv", ".m3u",  ".m3u8",
+                                           ".pls",        ".cue",      ".log",      ".txt", ".jpg", ".jpeg", ".png",
+                                           ".gif",        ".bmp",      ".tbn",      ".nfo", ".srt", ".sub",  ".idx",
+                                           ".zip",        ".rar",      ".7z",       ".tar", ".gz",  ".bz2",  ".xz",
+                                           ".html",       ".htm",      ".url",      ".lnk", ".db",  ".ini"};
+    const size_t numNames = sizeof(ignorableNames) / sizeof(ignorableNames[0]);
+    for (size_t i = 0; i < numNames; ++i) {
+        if (stricmp(base, ignorableNames[i]) == 0)
+            return true;
+    }
+    // Also ignorable if extension matches ignorable extensions
+    static const char *ignorableExts[] = {".jpg", ".jpeg", ".png", ".gif",  ".bmp", ".tbn",     ".nfo",  ".srt",
+                                          ".sub", ".idx",  ".log", ".txt",  ".sfv", ".m3u",     ".m3u8", ".pls",
+                                          ".cue", ".db",   ".ini", ".html", ".htm", ".url",     ".zip",  ".rar",
+                                          ".7z",  ".tar",  ".gz",  ".bz2",  ".xz",  ".ds_store"};
+    const char *dot = strrchr(base, '.');
+    if (dot) {
+        const size_t numIgExts = sizeof(ignorableExts) / sizeof(ignorableExts[0]);
+        for (size_t i = 0; i < numIgExts; ++i) {
+            if (stricmp(dot, ignorableExts[i]) == 0)
+                return true;
+        }
+    }
+    return false;
+}
+
+dir_status classify_directory(const std::vector<std::string> & filenames) {
+    bool hasMusic = false;
+    bool hasUseful = false;
+    bool hasIgnorable = false;
+    for (const auto & name : filenames) {
+        if (is_music_file(name.c_str()))
+            hasMusic = true;
+        else if (is_ignorable_file(name.c_str()))
+            hasIgnorable = true;
+        else
+            hasUseful = true;
+    }
+    if (hasMusic)
+        return dir_status::has_music;
+    if (hasUseful)
+        return dir_status::has_useful_files;
+    return dir_status::empty_or_dead;
+}
+
 // Derive tracks appearing 2+ times from a unified scan result.
-std::vector<dup_info> derive_duplicates(const scan_result &result) {
+std::vector<dup_info> derive_duplicates(const scan_result & result) {
     std::vector<dup_info> dupes;
-    for (const auto &t : result.tracks) {
+    for (const auto & t : result.tracks) {
         if (t.playlists.size() > 1) {
             dup_info d;
             d.header = t.header;
@@ -203,16 +276,15 @@ std::vector<dup_info> derive_duplicates(const scan_result &result) {
 // Derive library tracks sitting in no playlist at all.
 // library_keys: all track keys in the media library.
 // result: scan result containing tracks found in playlists.
-std::vector<dup_info> derive_orphans(const scan_result &result,
-                                     const std::unordered_set<std::string> &library_keys) {
+std::vector<dup_info> derive_orphans(const scan_result & result, const std::unordered_set<std::string> & library_keys) {
     std::vector<dup_info> orphans;
 
     // Build set of track keys present in at least one playlist.
     std::unordered_set<std::string> placed;
-    for (const auto &t : result.tracks)
+    for (const auto & t : result.tracks)
         placed.insert(t.key);
 
-    for (const auto &k : library_keys) {
+    for (const auto & k : library_keys) {
         if (placed.count(k))
             continue;
 

@@ -27,13 +27,13 @@ static int g_checks = 0;
         }                                                                                                              \
     } while (0)
 
-static std::string fmt_report(const std::vector<track_report> &r) {
+static std::string fmt_report(const std::vector<track_report> & r) {
     pfc::string_formatter f;
     format_report(r, f);
     return f.c_str();
 }
 
-static std::string fmt_dead(const std::vector<dead_entry> &d, bool removed) {
+static std::string fmt_dead(const std::vector<dead_entry> & d, bool removed) {
     pfc::string_formatter f;
     format_dead_report(d, removed, f);
     return f.c_str();
@@ -78,10 +78,10 @@ static void test_format_dead() {
     dead_entry b{0, "Mix A", 7, "Artist - Two", "Z:\\path\\two.mp3"};
     dead_entry c{1, "Mix B", 0, "Artist - Three", "Z:\\path\\three.mp3"};
     CHECK_STR_EQ(fmt_dead({a, b, c}, false), "Dead tracks found: 3 entries across 2 playlists.\n"
-                                              "No changes made. Run Remove Dead Tracks to apply.\n"
-                                              "Mix A: 2\n  - Artist - One\n      Z:\\path\\one.mp3\n  - Artist - Two\n"
-                                              "      Z:\\path\\two.mp3\n"
-                                              "Mix B: 1\n  - Artist - Three\n      Z:\\path\\three.mp3\n");
+                                             "No changes made. Run Remove Dead Tracks to apply.\n"
+                                             "Mix A: 2\n  - Artist - One\n      Z:\\path\\one.mp3\n  - Artist - Two\n"
+                                             "      Z:\\path\\two.mp3\n"
+                                             "Mix B: 1\n  - Artist - Three\n      Z:\\path\\three.mp3\n");
     CHECK_STR_EQ(fmt_dead({a}, true), "Dead tracks removed: 1 entries across 1 playlists.\n"
                                       "(Undo per playlist with Ctrl+Z if anything looks wrong.)\n"
                                       "Mix A: 1\n  - Artist - One\n      Z:\\path\\one.mp3\n");
@@ -121,6 +121,51 @@ static void test_has_invalid_tag_chars() {
     CHECK(has_invalid_tag_chars("Artist\x01 Name"));
     CHECK(!has_invalid_tag_chars(""));
     CHECK(!has_invalid_tag_chars(nullptr));
+}
+
+static void test_is_music_file() {
+    CHECK(is_music_file("song.mp3"));
+    CHECK(is_music_file("song.flac"));
+    CHECK(is_music_file("song.wav"));
+    CHECK(is_music_file("song.m4a"));
+    CHECK(is_music_file("song.ogg"));
+    CHECK(is_music_file("song.wma"));
+    CHECK(is_music_file("song.aiff"));
+    CHECK(is_music_file("song.opus"));
+    CHECK(!is_music_file("cover.jpg"));
+    CHECK(!is_music_file("desktop.ini"));
+    CHECK(!is_music_file("readme.txt"));
+    CHECK(!is_music_file("song"));
+    CHECK(!is_music_file(nullptr));
+}
+
+static void test_is_ignorable_file() {
+    CHECK(is_ignorable_file("desktop.ini"));
+    CHECK(is_ignorable_file(".DS_Store"));
+    CHECK(is_ignorable_file("thumbs.db"));
+    CHECK(is_ignorable_file("cover.jpg"));
+    CHECK(is_ignorable_file("album.png"));
+    CHECK(is_ignorable_file("readme.txt"));
+    CHECK(is_ignorable_file("info.nfo"));
+    CHECK(is_ignorable_file("playlist.m3u"));
+    CHECK(is_ignorable_file("playlist.m3u8"));
+    CHECK(!is_ignorable_file("song.mp3"));
+    CHECK(!is_ignorable_file("song.flac"));
+    CHECK(!is_ignorable_file("unknown.xyz"));
+    CHECK(!is_ignorable_file(nullptr));
+}
+
+static void test_classify_directory() {
+    // Empty directory -> empty_or_dead
+    CHECK(classify_directory({}) == dir_status::empty_or_dead);
+    // Only ignorable files -> empty_or_dead
+    CHECK(classify_directory({"desktop.ini", ".DS_Store"}) == dir_status::empty_or_dead);
+    // Contains music -> has_music
+    CHECK(classify_directory({"song.mp3", "cover.jpg"}) == dir_status::has_music);
+    // Contains useful non-music files -> has_useful_files
+    CHECK(classify_directory({"readme.txt", "info.pdf"}) == dir_status::has_useful_files);
+    // Music takes priority over useful
+    CHECK(classify_directory({"song.flac", "readme.txt"}) == dir_status::has_music);
 }
 
 static void test_record_track_playlist_match() {
@@ -192,7 +237,7 @@ static void test_derive_orphans() {
     CHECK(orphans[0].key == "k3" || orphans[0].key == "k4");
     CHECK(orphans[1].key == "k3" || orphans[1].key == "k4");
     CHECK(orphans[0].key != orphans[1].key);
-    for (const auto &o : orphans)
+    for (const auto & o : orphans)
         CHECK(o.occurrences == 0);
 }
 
@@ -204,6 +249,9 @@ int main() {
     test_write_report_file();
     test_record_track_playlist_match();
     test_has_invalid_tag_chars();
+    test_is_music_file();
+    test_is_ignorable_file();
+    test_classify_directory();
     test_derive_duplicates();
     test_derive_orphans();
     printf("%d checks, %d failures\n", g_checks, g_failures);

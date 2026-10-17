@@ -8,10 +8,8 @@
 
 class playlist_property_provider : public track_property_provider_v5 {
   public:
-    void enumerate_properties_v5(trackListRef items,
-                                 track_property_provider_v5_info_source &,
-                                 track_property_callback_v2 &cb,
-                                 abort_callback &) override {
+    void enumerate_properties_v5(trackListRef items, track_property_provider_v5_info_source &,
+                                 track_property_callback_v2 & cb, abort_callback &) override {
         if (!core_api::is_main_thread())
             return; // playlist APIs are main-thread only
         if (!cb.is_group_wanted("Playlists"))
@@ -21,12 +19,11 @@ class playlist_property_provider : public track_property_provider_v5 {
             sel.add_item(items[i]);
         std::vector<track_report> reports;
         find_playlists_for(sel, reports);
-        for (const auto &r : reports) {
+        for (const auto & r : reports) {
             pfc::string_formatter count;
             count << r.lists.size();
-            cb.set_property("Playlists", 0,
-                            (std::string("Playlists holding: ") + r.header).c_str(), count.c_str());
-            for (const auto &n : r.lists)
+            cb.set_property("Playlists", 0, (std::string("Playlists holding: ") + r.header).c_str(), count.c_str());
+            for (const auto & n : r.lists)
                 cb.set_property("Playlists", 0, n.c_str(), "");
         }
     }

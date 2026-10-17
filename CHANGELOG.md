@@ -8,9 +8,11 @@ Versions match `FIP_VERSION` in `src/version.h`.
 ## [1.6.1] - 2026-10-17
 
 ### Added
+
 - Scan Invalid Tags: finds tracks with invalid filename characters in tags and collects them into an Invalid Tags playlist.
 
 ### Changed
+
 - Refactored foo_findplaylists.cpp into deep modules: context_menu.cpp, main_menu.cpp, properties.cpp, scanner.cpp, export.cpp, playlist_ops.cpp.
 - Unified three playlist scans into a single pass (scan_playlists) with derive_duplicates / derive_orphans.
 - Unified dialog boilerplate into pick_folder / pick_format / prompt_save_playlist_path.
@@ -19,6 +21,7 @@ Versions match `FIP_VERSION` in `src/version.h`.
 - C++20: if init, structured bindings, try_emplace, [[nodiscard]].
 
 ### Fixed
+
 - Bulk export wrote zero files (bad install-path handling); replaced by dialog flow.
 
 ## [1.5.0] - 2026-10-16

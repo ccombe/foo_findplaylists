@@ -15,6 +15,9 @@ static const GUID guid_cmd_dead = {0x20809f94, 0xef38, 0x470e, {0x81, 0xaa, 0x31
 static const GUID guid_cmd_export = {0x3e717dde, 0xf086, 0x4e77, {0xa4, 0x2f, 0xd2, 0xa3, 0x81, 0x6e, 0xb7, 0xdf}};
 static const GUID guid_cmd_export_active = {
     0x98304d3d, 0x4404, 0x4819, {0x98, 0x44, 0xf3, 0xf0, 0xb4, 0x89, 0x0e, 0xe1}};
+static const GUID guid_cmd_dead_dirs = {0xb1c2d3e4, 0xf5a6, 0x7890, {0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf1}};
+static const GUID guid_cmd_remove_dead_dirs = {
+    0xc2d3e4f5, 0xa6b7, 0x8901, {0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x01}};
 static const GUID guid_cmd_invalid_tags = {
     0xa1b2c3d4, 0xe5f6, 0x7890, {0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0}};
 
@@ -35,6 +38,8 @@ class main_find_playing : public mainmenu_commands {
         cmd_export,
         cmd_export_active,
         cmd_invalid_tags,
+        cmd_dead_dirs,
+        cmd_remove_dead_dirs,
         cmd_total
     };
     t_uint32 get_command_count() override { return cmd_total; }
@@ -58,12 +63,16 @@ class main_find_playing : public mainmenu_commands {
             return guid_cmd_export_active;
         case cmd_invalid_tags:
             return guid_cmd_invalid_tags;
+        case cmd_dead_dirs:
+            return guid_cmd_dead_dirs;
+        case cmd_remove_dead_dirs:
+            return guid_cmd_remove_dead_dirs;
         default:
             uBugCheck();
         }
     }
     GUID get_parent() override { return guid_main_group; }
-    void get_name(t_uint32 idx, pfc::string_base &out) override {
+    void get_name(t_uint32 idx, pfc::string_base & out) override {
         switch (idx) {
         case cmd_find:
             out = "Find Playlists Containing Playing Track";
@@ -92,11 +101,17 @@ class main_find_playing : public mainmenu_commands {
         case cmd_invalid_tags:
             out = "Scan Invalid Tags";
             break;
+        case cmd_dead_dirs:
+            out = "Find Dead/Empty Directories";
+            break;
+        case cmd_remove_dead_dirs:
+            out = "Remove Dead/Empty Directories";
+            break;
         default:
             uBugCheck();
         }
     }
-    bool get_description(t_uint32 idx, pfc::string_base &out) override {
+    bool get_description(t_uint32 idx, pfc::string_base & out) override {
         switch (idx) {
         case cmd_find:
             out = "Writes the playlists holding the now-playing track to a report file.";
@@ -123,7 +138,8 @@ class main_find_playing : public mainmenu_commands {
             out = "Asks for a file, then saves the active playlist to it.";
             return true;
         case cmd_invalid_tags:
-            out = "Finds tracks with invalid filename characters in tags and collects them into an Invalid Tags playlist.";
+            out = "Finds tracks with invalid filename characters in tags and collects them into an Invalid Tags "
+                  "playlist.";
             return true;
         default:
             return false;
@@ -158,17 +174,23 @@ class main_find_playing : public mainmenu_commands {
         case cmd_invalid_tags:
             run_invalid_tags();
             break;
+        case cmd_dead_dirs:
+            run_dead_dirs();
+            break;
+        case cmd_remove_dead_dirs:
+            run_remove_dead_dirs();
+            break;
         default:
             uBugCheck();
         }
     }
 
   private:
-    static void report(const char *title, const pfc::string_base &msg) {
+    static void report(const char *title, const pfc::string_base & msg) {
         const std::string path(write_report_file(title, msg));
         FB2K_console_formatter() << title << " (report: " << path.c_str() << ")";
     }
-    static void confirm(const char *title, const pfc::string_base &summary) { popup_message::g_show(summary, title); }
+    static void confirm(const char *title, const pfc::string_base & summary) { popup_message::g_show(summary, title); }
 
     static void run_find_playing() {
         pfc::string_formatter msg;
@@ -195,8 +217,8 @@ class main_find_playing : public mainmenu_commands {
         std::vector<metadb_handle_ptr> handles;
         static_api_ptr_t<playlist_manager> pm;
         metadb_handle_list items;
-        for (const auto &d : dupes) {
-            for (const auto &pl : d.playlists) {
+        for (const auto & d : dupes) {
+            for (const auto & pl : d.playlists) {
                 t_size plIdx = pm->find_playlist(pl.c_str());
                 if (plIdx == ~0)
                     continue;
@@ -215,7 +237,7 @@ class main_find_playing : public mainmenu_commands {
         const t_size added = collect_into("Potential Duplicates", handles);
         pfc::string_formatter msg;
         msg << "Tracks occurring more than once: " << dupes.size() << "\n";
-        for (const auto &d : dupes) {
+        for (const auto & d : dupes) {
             msg << d.header.c_str() << " (" << d.occurrences << "x: ";
             for (size_t i = 0; i < d.playlists.size(); ++i)
                 msg << (i ? ", " : "") << d.playlists[i].c_str();
@@ -242,7 +264,7 @@ class main_find_playing : public mainmenu_commands {
             library_keys.insert(track_key(all[t]));
         auto orphans = derive_orphans(result, library_keys);
         std::vector<metadb_handle_ptr> handles;
-        for (const auto &d : orphans) {
+        for (const auto & d : orphans) {
             for (t_size t = 0; t < all.get_count(); ++t) {
                 if (track_key(all[t]) == d.key) {
                     handles.push_back(all[t]);
@@ -254,7 +276,7 @@ class main_find_playing : public mainmenu_commands {
         pfc::string_formatter msg;
         msg << "Tracks not in playlists: " << orphans.size() << " library tracks in no playlist, " << added
             << " added to 'Tracks Not in Playlists'\n";
-        for (const auto &d : orphans)
+        for (const auto & d : orphans)
             msg << d.header.c_str() << "\n";
         report("Find in Playlists: orphans", msg);
         pfc::string_formatter sum;
@@ -268,7 +290,7 @@ class main_find_playing : public mainmenu_commands {
         auto dupes = scan_active_duplicates(plname);
         pfc::string_formatter msg;
         msg << "Repeated tracks in '" << plname.c_str() << "': " << dupes.size() << "\n";
-        for (const auto &d : dupes)
+        for (const auto & d : dupes)
             msg << d.header.c_str() << " (" << d.occurrences << "x)\n";
         report("Find in Playlists: active duplicates", msg);
         pfc::string_formatter sum;
@@ -315,6 +337,69 @@ class main_find_playing : public mainmenu_commands {
         confirm("Find in Playlists", msg);
     }
 
+    static void run_dead_dirs() {
+        auto dirs = scan_dead_directories();
+        pfc::string_formatter msg;
+        msg << "Dead/empty directories found: " << dirs.size() << "\n";
+        for (const auto & d : dirs)
+            msg << d.c_str() << "\n";
+        report("Find in Playlists: dead directories", msg);
+        pfc::string_formatter sum;
+        if (dirs.empty())
+            sum << "No dead/empty directories found.";
+        else
+            sum << dirs.size() << " dead/empty directories found.\nFull list in the report file.";
+        confirm("Find in Playlists", sum);
+    }
+
+    static void run_remove_dead_dirs() {
+        auto dirs = scan_dead_directories();
+        if (dirs.empty()) {
+            pfc::string_formatter _sum;
+            _sum << "No dead/empty directories found.";
+            confirm("Find in Playlists", _sum);
+            return;
+        }
+        pfc::string_formatter msg;
+        msg << "Dead/empty directories to remove: " << dirs.size() << "\n";
+        for (const auto & d : dirs)
+            msg << d.c_str() << "\n";
+        report("Find in Playlists: dead directories (removal)", msg);
+
+        // Remove each directory recursively.
+        t_size removed = 0;
+        t_size failed = 0;
+        for (const auto & dir : dirs) {
+            // Delete all files in the directory first.
+            WIN32_FIND_DATAA fd;
+            HANDLE hFind = FindFirstFileA((dir + std::string("\\*")).c_str(), &fd);
+            if (hFind != INVALID_HANDLE_VALUE) {
+                do {
+                    const char *name = fd.cFileName;
+                    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
+                        continue;
+                    std::string fullPath = dir + std::string("\\") + name;
+                    if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+                        RemoveDirectoryA(fullPath.c_str());
+                    } else {
+                        DeleteFileA(fullPath.c_str());
+                    }
+                } while (FindNextFileA(hFind, &fd));
+                FindClose(hFind);
+            }
+            if (RemoveDirectoryA(dir.c_str()))
+                ++removed;
+            else
+                ++failed;
+        }
+
+        pfc::string_formatter sum;
+        sum << "Removed " << removed << " of " << dirs.size() << " directories.";
+        if (failed > 0)
+            sum << " " << failed << " failed (see report).";
+        confirm("Find in Playlists", sum);
+    }
+
     static void run_export_active() {
         pfc::string_formatter msg;
         run_export_active_impl(msg);
@@ -327,7 +412,7 @@ class main_find_playing : public mainmenu_commands {
         std::vector<metadb_handle_ptr> handles;
         static_api_ptr_t<playlist_manager> pm;
         metadb_handle_list items;
-        for (const auto &d : invalid) {
+        for (const auto & d : invalid) {
             t_size plIdx = d.playlist;
             items.remove_all();
             pm->playlist_get_all_items(plIdx, items);
@@ -337,7 +422,7 @@ class main_find_playing : public mainmenu_commands {
         const t_size added = collect_into("Invalid Tags", handles);
         pfc::string_formatter msg;
         msg << "Tracks with invalid tag characters: " << invalid.size() << "\n";
-        for (const auto &d : invalid)
+        for (const auto & d : invalid)
             msg << d.header.c_str() << " (in '" << d.playlistName.c_str() << "')\n";
         pfc::string_formatter head;
         head << "Invalid tags: " << invalid.size() << " tracks with invalid characters, " << added
@@ -348,8 +433,8 @@ class main_find_playing : public mainmenu_commands {
         if (invalid.empty())
             sum << "No tracks with invalid tag characters found.";
         else
-            sum << invalid.size() << " tracks with invalid tag characters, 'Invalid Tags' rebuilt with "
-                << added << ".\nFull list in the report file.";
+            sum << invalid.size() << " tracks with invalid tag characters, 'Invalid Tags' rebuilt with " << added
+                << ".\nFull list in the report file.";
         confirm("Find in Playlists", sum);
     }
 };

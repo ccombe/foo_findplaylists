@@ -18,20 +18,24 @@ bool track_is_live(metadb_handle_ptr h, std::unordered_map<std::string, bool> *c
 scan_result scan_playlists();
 
 // Tracks appearing more than once anywhere (2+ playlists, or repeated).
-std::vector<dup_info> scan_active_duplicates(std::string &plname_out);
+std::vector<dup_info> scan_active_duplicates(std::string & plname_out);
 
 // Dead entries pointing at missing files, grouped by playlist.
 std::vector<dead_entry> scan_dead_tracks();
 
 // For a set of selected tracks, find every playlist containing each.
-void find_playlists_for(metadb_handle_list_cref sel, std::vector<track_report> &out);
+void find_playlists_for(metadb_handle_list_cref sel, std::vector<track_report> & out);
 
 // Jump to a track inside a playlist: activate it, select + focus the track.
-void goto_track_in_playlist(const std::string &playlist, const std::string &key);
+void goto_track_in_playlist(const std::string & playlist, const std::string & key);
 
 // Tracks whose tags contain invalid filename characters (e.g. < > : " / \ | ? *).
 // Groups results by playlist for reporting/cleanup.
 std::vector<dead_entry> scan_invalid_tags();
+
+// Directories under the media library that are empty or contain only ignorable files.
+// Returns a list of directory paths that are candidates for deletion.
+std::vector<std::string> scan_dead_directories();
 
 // Playlists this component manages. Excluded from every scan and from export:
 // otherwise collected tracks would re-flag themselves on the next run.
