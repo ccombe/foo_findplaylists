@@ -5,6 +5,8 @@ Versions match `FIP_VERSION` in `src/version.h`.
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-10-17
+
 ### Added
 - Scan Invalid Tags: finds tracks with invalid filename characters in tags and collects them into an Invalid Tags playlist.
 
@@ -91,3 +93,4 @@ Versions match `FIP_VERSION` in `src/version.h`.
 - Right-click track(s) to see which playlists contain them (popup report).
 - Library command reporting the playlists holding the now-playing track.
 - Properties dialog gains a Playlists group for the selected track(s).
+
