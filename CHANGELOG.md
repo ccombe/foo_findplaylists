@@ -5,6 +5,16 @@ Versions match `FIP_VERSION` in `src/version.h`.
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-17
+
+### Changes
+
+- ci: grant release workflow pull-requests write for bump PR (#5) (d4f621c)
+- ci: release version bump via auto-merge PR (#4) (57c2f99)
+- feat: richer About text with author, date and feature guide (#3) (56761a4)
+- ci: auto-approve PRs from repo owner (#2) (b581093)
+- chore(release): bump version to 1.7.0 [skip ci] (c1b6065)
+
 ## [1.7.0] - 2026-10-17
 
 ### Changes
