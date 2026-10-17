@@ -5,6 +5,14 @@ Versions match `FIP_VERSION` in `src/version.h`.
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-17
+
+### Changes
+- style: fix version.h clang-format (dfcf4ce)
+- style: fix changelog formatting (a34dfbe)
+- feat: add scan dead/empty directories with remove capability (5dfd75e)
+- chore(release): bump version to 1.6.1 [skip ci] (2dd6eb7)
+
 ## [1.6.1] - 2026-10-17
 
 ### Added
@@ -96,3 +104,4 @@ Versions match `FIP_VERSION` in `src/version.h`.
 - Right-click track(s) to see which playlists contain them (popup report).
 - Library command reporting the playlists holding the now-playing track.
 - Properties dialog gains a Playlists group for the selected track(s).
+
