@@ -11,7 +11,27 @@
 #include "scanner.h"
 #include "version.h"
 
-DECLARE_COMPONENT_VERSION("Find in Playlists", FIP_VERSION, "Shows which playlists contain the selected track(s).");
+DECLARE_COMPONENT_VERSION(
+    "Find in Playlists", FIP_VERSION,
+    "Created by Chris Combe. Last updated 2026-10-18.\n"
+    "\n"
+    "Reverse playlist lookup for foobar2000: see which playlists contain a track and jump to it.\n"
+    "\n"
+    "Where to find the features:\n"
+    "- Right-click track(s): \"Find in Playlists\" lists every playlist holding them; picking one jumps to the "
+    "track. Playlists also show in the Properties dialog as a \"Playlists\" group.\n"
+    "- Library menu > Find in Playlists:\n"
+    "  * Find Playlists Containing Playing Track\n"
+    "  * Collect Potential Duplicates into Playlist\n"
+    "  * Collect Tracks Not in Playlists\n"
+    "  * Find Duplicates in Active Playlist\n"
+    "  * Find / Remove Dead Tracks in All Playlists\n"
+    "  * Scan Invalid Tags\n"
+    "  * Find / Remove Dead/Empty Directories\n"
+    "  * Export All Playlists to Folder... (m3u / m3u8)\n"
+    "  * Export Active Playlist to File...\n"
+    "\n"
+    "All commands are file-based and report to a text file under %TEMP% instead of popups.");
 VALIDATE_COMPONENT_FILENAME("foo_findplaylists.dll");
 FOOBAR2000_IMPLEMENT_CFG_VAR_DOWNGRADE;
 
