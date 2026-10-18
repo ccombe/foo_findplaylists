@@ -188,8 +188,10 @@ static bool list_dir_entries(const std::string & dir, std::vector<std::string> &
                              std::vector<std::string> & subdirs) {
     namespace fs = std::filesystem;
     std::error_code ec;
-    for (fs::directory_iterator it(fs::path(dir), fs::directory_options::skip_permission_denied, ec), end; it != end;
-         it.increment(ec)) {
+    // extended_path: > MAX_PATH trees and literal "[unnamed]" names.
+    for (fs::directory_iterator it(fs::path(extended_path(dir)), fs::directory_options::skip_permission_denied, ec),
+         end;
+         it != end; it.increment(ec)) {
         if (ec)
             break;
         std::string name;
@@ -209,8 +211,9 @@ static bool list_dir_entries(const std::string & dir, std::vector<std::string> &
     return !ec;
 }
 
-std::vector<std::string> scan_dead_directories() {
+std::vector<std::string> scan_dead_directories(std::string *diag) {
     std::vector<std::string> candidates;
+    size_t enumFailures = 0;
     static_api_ptr_t<library_manager> lm;
     metadb_handle_list all;
     lm->get_all_items(all);
@@ -250,8 +253,10 @@ std::vector<std::string> scan_dead_directories() {
 
             std::vector<std::string> filenames;
             std::vector<std::string> subdirs;
-            if (!list_dir_entries(dir, filenames, subdirs))
+            if (!list_dir_entries(dir, filenames, subdirs)) {
+                ++enumFailures;
                 continue;
+            }
 
             // Classify this directory. The shared ancestor itself is never
             // dead - it just wraps the tree being scanned. A dir with
@@ -273,6 +278,18 @@ std::vector<std::string> scan_dead_directories() {
     std::sort(candidates.begin(), candidates.end());
     candidates.erase(std::unique(candidates.begin(), candidates.end()), candidates.end());
 
+    if (diag) {
+        std::string rootsJoined;
+        for (const auto & r : roots) {
+            if (!rootsJoined.empty())
+                rootsJoined += "; ";
+            rootsJoined += r;
+        }
+        *diag = "library items: " + std::to_string(all.get_count()) +
+                ", track dirs: " + std::to_string(dirOfTrack.size()) + ", roots: [" + rootsJoined +
+                "], dirs visited: " + std::to_string(visited.size()) +
+                ", unreadable dirs: " + std::to_string(enumFailures);
+    }
     return candidates;
 }
 

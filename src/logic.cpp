@@ -115,6 +115,20 @@ std::vector<std::string> common_scan_roots(const std::unordered_set<std::string>
     return roots;
 }
 
+// Windows extended-length path so > MAX_PATH trees still enumerate. The \\?\
+// prefix also keeps names like "[unnamed]" literal for the file APIs.
+std::string extended_path(const std::string & path) {
+    std::string s = path;
+    std::replace(s.begin(), s.end(), '/', '\\');
+    if (s.rfind("\\\\?\\", 0) == 0)
+        return s; // already extended
+    if (s.rfind("\\\\", 0) == 0)
+        return "\\\\?\\UNC" + s.substr(1); // UNC: \\server\share -> \\?\UNC\server\share
+    if (s.size() >= 2 && s[1] == ':')
+        return "\\\\?\\" + s;
+    return s; // relative or unusual: leave as is
+}
+
 bool record_track_playlist_match(const std::string & key, const std::string & playlistName,
                                  const std::unordered_map<std::string, size_t> & indexOf,
                                  std::vector<track_report> & reports) {

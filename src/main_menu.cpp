@@ -338,9 +338,11 @@ class main_find_playing : public mainmenu_commands {
     }
 
     static void run_dead_dirs() {
-        auto dirs = scan_dead_directories();
+        std::string diag;
+        auto dirs = scan_dead_directories(&diag);
         pfc::string_formatter msg;
         msg << "Dead/empty directories found: " << dirs.size() << "\n";
+        msg << "Scan stats: " << diag.c_str() << "\n\n";
         for (const auto & d : dirs)
             msg << d.c_str() << "\n";
         report("Find in Playlists: dead directories", msg);
@@ -353,15 +355,19 @@ class main_find_playing : public mainmenu_commands {
     }
 
     static void run_remove_dead_dirs() {
-        auto dirs = scan_dead_directories();
+        std::string diag;
+        auto dirs = scan_dead_directories(&diag);
         if (dirs.empty()) {
             pfc::string_formatter _sum;
-            _sum << "No dead/empty directories found.";
+            _sum << "No dead/empty directories found.\nScan stats: " << diag.c_str()
+                 << "\nFull detail in the report file.";
+            report("Find in Playlists: dead directories (removal)", _sum);
             confirm("Find in Playlists", _sum);
             return;
         }
         pfc::string_formatter msg;
         msg << "Dead/empty directories to remove: " << dirs.size() << "\n";
+        msg << "Scan stats: " << diag.c_str() << "\n\n";
         for (const auto & d : dirs)
             msg << d.c_str() << "\n";
         report("Find in Playlists: dead directories (removal)", msg);
@@ -375,7 +381,9 @@ class main_find_playing : public mainmenu_commands {
             // wildcard pattern, so folder names like "[unnamed]" fail.
             namespace fs = std::filesystem;
             std::error_code ec;
-            for (fs::directory_iterator it(fs::path(dir), fs::directory_options::skip_permission_denied, ec), end;
+            for (fs::directory_iterator
+                     it(fs::path(extended_path(dir)), fs::directory_options::skip_permission_denied, ec),
+                 end;
                  it != end && !ec; it.increment(ec)) {
                 std::string name;
                 try {
@@ -383,7 +391,7 @@ class main_find_playing : public mainmenu_commands {
                 } catch (const std::system_error &) {
                     continue; // undecodable name: skip the entry
                 }
-                const std::string fullPath = dir + std::string("\\") + name;
+                const std::string fullPath = extended_path(dir + std::string("\\") + name);
                 if (it->is_directory(ec)) {
                     if (ec)
                         break;
@@ -393,7 +401,7 @@ class main_find_playing : public mainmenu_commands {
                 }
             }
             ec.clear();
-            if (RemoveDirectoryA(dir.c_str()))
+            if (RemoveDirectoryA(extended_path(dir).c_str()))
                 ++removed;
             else
                 ++failed;

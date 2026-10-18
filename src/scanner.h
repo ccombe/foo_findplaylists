@@ -34,8 +34,9 @@ void goto_track_in_playlist(const std::string & playlist, const std::string & ke
 std::vector<dead_entry> scan_invalid_tags();
 
 // Directories under the media library that are empty or contain only ignorable files.
-// Returns a list of directory paths that are candidates for deletion.
-std::vector<std::string> scan_dead_directories();
+// Returns a list of directory paths that are candidates for deletion. When diag is
+// given, it receives a one-line scan summary (items seen, roots, dirs visited, errors).
+std::vector<std::string> scan_dead_directories(std::string *diag = nullptr);
 
 // Playlists this component manages. Excluded from every scan and from export:
 // otherwise collected tracks would re-flag themselves on the next run.
