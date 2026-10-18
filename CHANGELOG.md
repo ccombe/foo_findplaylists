@@ -5,6 +5,13 @@ Versions match `FIP_VERSION` in `src/version.h`.
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-10-18
+
+### Fixed
+
+- Find Dead/Empty Directories now scans the whole watched tree: roots are the deepest shared folder per volume, so empty folders that sit beside album folders are found too. Folders containing subfolders are no longer misreported as dead.
+- The Properties dialog now shows the "Playlists" group reliably: playlist lookups hop to the main thread when foobar enumerates properties on a worker thread.
+
 ## [1.8.0] - 2026-10-17
 
 ### Changes
