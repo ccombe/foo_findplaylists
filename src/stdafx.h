@@ -8,6 +8,7 @@
 #include <foobar2000/SDK/playback_control.h>
 #include <foobar2000/SDK/popup_message.h>
 #include <foobar2000/SDK/track_property.h>
+#include <foobar2000/SDK/threadsLite.h>
 #include <foobar2000/SDK/library_manager.h>
 #include <foobar2000/SDK/playlist_loader.h>
 #include <foobar2000/SDK/abort_callback_impl.h>

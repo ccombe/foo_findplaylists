@@ -3,6 +3,7 @@
 #include "logic.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <cstring>
 
@@ -39,20 +40,69 @@ bool has_invalid_tag_chars(const char *field) {
     return false;
 }
 
-bool record_track_playlist_match(const std::string & key, const std::string & playlistName,
-                                 const std::unordered_map<std::string, size_t> & indexOf,
-                                 std::vector<track_report> & reports) {
-    const auto it = indexOf.find(key);
-    if (it == indexOf.end())
-        return false;
+// Deepest shared ancestor (per drive volume) of the given directory paths:
+// the top folder to scan so empty sibling folders in the watched tree are found.
+// Returns one root per volume that actually holds library directories.
+std::vector<std::string> common_scan_roots(const std::unordered_set<std::string> & dirPaths) {
+    auto toNorm = [](std::string s) {
+        for (auto & c : s) {
+            if (c == '/')
+                c = '\\';
+            else
+                c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
+        }
+        return s;
+    };
 
-    auto & lists = reports[it->second].lists;
-    if (!lists.empty() && lists.back() == playlistName)
-        return false;
+    // volume ("g:\") -> (component lists, one original-case dir to cut the root from)
+    struct vol {
+        std::vector<std::vector<std::string>> comps;
+        const std::string *sample = nullptr;
+    };
+    std::unordered_map<std::string, vol> byVolume;
+    for (const auto & raw : dirPaths) {
+        const std::string norm = toNorm(raw);
+        const size_t colon = norm.find(":\\");
+        if (colon == std::string::npos) // not a file path (network, stream...)
+            continue;
+        const std::string volume = norm.substr(0, colon + 2);
+        std::vector<std::string> parts;
+        size_t i = volume.size();
+        while (i < norm.size()) {
+            size_t next = norm.find('\\', i);
+            if (next == std::string::npos)
+                next = norm.size();
+            if (i < next) // ignore empty segments (e.g. doubleslash)
+                parts.push_back(norm.substr(i, next - i));
+            i = next + 1;
+        }
+        auto & v = byVolume[volume];
+        v.comps.push_back(std::move(parts));
+        v.sample = &raw;
+    }
 
-    lists.push_back(playlistName);
-    return true;
+    std::vector<std::string> roots;
+    roots.reserve(byVolume.size());
+    for (auto & [volume, v] : byVolume) {
+        size_t rootLen = volume.size(); // original-case root cut from the sample dir
+        for (size_t i = 0; i < v.comps[0].size(); ++i) {
+            const auto & part = v.comps[0][i];
+            bool shared = true;
+            for (const auto & c : v.comps)
+                if (i >= c.size() || c[i] != part)
+                    shared = false;
+            if (!shared)
+                break;
+            rootLen += part.size() + 1; // component + separator
+        }
+        roots.push_back(v.sample->substr(0, rootLen));
+    }
+    return roots;
 }
+
+bool record_track_playlist_match(const std::string & key, const std::string & playlistName,
+
+bool record_track_playlist_match(const std::string & key, const std::string & playlistName,
 
 static void append_track_report_entry(pfc::string_base & f, const track_report & r) {
     f << r.header.c_str() << "\n";
