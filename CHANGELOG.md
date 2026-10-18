@@ -5,6 +5,12 @@ Versions match `FIP_VERSION` in `src/version.h`.
 
 ## [Unreleased]
 
+## [1.8.2] - 2026-10-18
+
+### Fixed
+
+- Directory paths with special characters (e.g. folders named "[unnamed]") are now scanned and removable: FindFirstFile patterns misread such names as wildcards, so folders silently vanished from Find/Remove Dead-Empty Directories.
+
 ## [1.8.1] - 2026-10-18
 
 ### Fixed
