@@ -10,15 +10,55 @@ import re
 import argparse
 
 def strip_comments_and_strings(code: str) -> str:
-    # Remove single line comments
-    code = re.sub(r"//.*", "", code)
-    # Remove multi-line comments
-    code = re.sub(r"/\*.*?\*/", "", code, flags=re.DOTALL)
-    # Remove string literals
-    code = re.sub(r"\"(?:\\.|[^\"\\])*\"", "\"\"", code)
-    # Remove char literals
-    code = re.sub(r"\'(?:\\.|[^\'\\])*\'", "''", code)
-    return code
+    # Single-pass state machine: comment stripping must not run before string
+    # handling, or a "://" inside a string literal is mistaken for a comment
+    # start and desynchronizes quote/brace pairing for the whole file.
+    out = []
+    i = 0
+    n = len(code)
+    state = 0  # 0: code, 1: line comment, 2: block comment, 3: string, 4: char
+    while i < n:
+        c = code[i]
+        nxt = code[i + 1] if i + 1 < n else ""
+        if state == 0:
+            if c == "/" and nxt == "/":
+                state = 1
+                i += 2
+            elif c == "/" and nxt == "*":
+                state = 2
+                i += 2
+            elif c == '"':
+                state = 3
+                out.append('"')
+                i += 1
+            elif c == "'":
+                state = 4
+                out.append("'")
+                i += 1
+            else:
+                out.append(c)
+                i += 1
+        elif state == 1:  # line comment: keep the newline
+            if c == "\n":
+                state = 0
+                out.append("\n")
+            i += 1
+        elif state == 2:  # block comment
+            if c == "*" and nxt == "/":
+                state = 0
+                i += 2
+            else:
+                i += 1
+        else:  # string (3) or char (4): keep quotes, drop escapes whole
+            if c == "\\":
+                i += 2
+            elif (state == 3 and c == '"') or (state == 4 and c == "'"):
+                state = 0
+                out.append(c)
+                i += 1
+            else:
+                i += 1
+    return "".join(out)
 
 def analyze_functions(filepath: str, is_unit_tested: bool = False):
     with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
