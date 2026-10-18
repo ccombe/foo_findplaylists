@@ -10,9 +10,7 @@ permissions:
 jobs:
   auto-approve:
     runs-on: ubuntu-latest
-    if: >-
-      github.event.pull_request.user.login == 'ccombe' ||
-      github.event.pull_request.user.login == 'github-actions[bot]'
+    if: github.event.pull_request.user.login == 'ccombe'
     steps:
       - name: Auto-approve
         env:

@@ -4,25 +4,13 @@ on:
   push:
     branches: [master, main]
   workflow_dispatch:
-    inputs:
-      bump_type:
-        description: "Manual bump type override (patch, minor, major, or auto)"
-        required: false
-        default: "auto"
-        type: choice
-        options:
-          - auto
-          - patch
-          - minor
-          - major
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   release:
-    name: Semantic Release & Publish
+    name: Build & Publish Release
     runs-on: windows-latest
     steps:
       - name: Checkout code
@@ -31,136 +19,25 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Calculate Semantic Version
+      # Version lives in src/version.h (bumped in a normal PR). A release
+      # happens whenever that version has no matching tag yet.
+      - name: Decide whether to release
         id: semver
         shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          MANUAL_BUMP: ${{ github.event.inputs.bump_type }}
         run: |
-          git fetch --tags --force
-          $tags = git tag -l --sort=-v:refname "v*"
-          $latestTag = if ($tags) { ($tags -split "`r?`n")[0].Trim() } else { $null }
-
-          if (-not $latestTag) {
-            Write-Host "No existing release tags found. Setting initial baseline version."
-            $content = Get-Content src/version.h -Raw
-            $m = [regex]::Match($content, 'FIP_VERSION\s+"([^"]+)"')
-            $base = if ($m.Success) { $m.Groups[1].Value } else { "1.4.0" }
-            $parts = $base.Split('.')
-            while ($parts.Count -lt 3) { $parts += '0' }
-            $newVersion = ($parts[0..2] -join '.')
-            $newTag = "v$newVersion"
-            $range = "HEAD"
-          } else {
-            Write-Host "Latest release tag found: $latestTag"
-            $range = "$latestTag..HEAD"
-            # Ignore automated "chore(release)" bump commits; they do not drive new releases
-            # (prevents an infinite patch-bump loop after a release lands).
-            $subjects = @(git log $range --pretty=format:"%s")
-            $meaningful = @($subjects | Where-Object { $_ -notmatch "^chore\(release\)" })
-            if (-not $meaningful) {
-              Write-Host "No new meaningful commits since $latestTag. Skipping release."
-              Write-Output "should_release=false" >> $env:GITHUB_OUTPUT
-              exit 0
-            }
-            $commitText = ($meaningful -join "`n").Trim()
-
-            $raw = $latestTag.TrimStart('v')
-            $parts = $raw.Split('.')
-            while ($parts.Count -lt 3) { $parts += '0' }
-            [int]$major = $parts[0]
-            [int]$minor = $parts[1]
-            [int]$patch = $parts[2]
-
-            $bump = if ($env:MANUAL_BUMP -and $env:MANUAL_BUMP -ne 'auto') { $env:MANUAL_BUMP } else { $null }
-            if (-not $bump) {
-              if ($commitText -match "(?m)^[a-zA-Z]+(\([^\)]+\))?!:" -or $commitText -match "BREAKING CHANGE") {
-                $bump = "major"
-              } elseif ($commitText -match "(?m)^feat(\([^\)]+\))?:") {
-                $bump = "minor"
-              } else {
-                $bump = "patch"
-              }
-            }
-
-            Write-Host "Determined bump type: $bump"
-            if ($bump -eq "major") {
-              $major++
-              $minor = 0
-              $patch = 0
-            } elseif ($bump -eq "minor") {
-              $minor++
-              $patch = 0
-            } else {
-              $patch++
-            }
-
-            $newVersion = "$major.$minor.$patch"
-            $newTag = "v$newVersion"
-          }
-
-          Write-Output "should_release=true" >> $env:GITHUB_OUTPUT
-          Write-Output "version=$newVersion" >> $env:GITHUB_OUTPUT
-          Write-Output "tag=$newTag" >> $env:GITHUB_OUTPUT
-          Write-Output "range=$range" >> $env:GITHUB_OUTPUT
-          Write-Host "Calculated next release: $newVersion (tag: $newTag)"
-
-      - name: Update version.h and CHANGELOG.md
-        if: steps.semver.outputs.should_release == 'true'
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          $ver = "${{ steps.semver.outputs.version }}"
-          $today = (Get-Date).ToString("yyyy-MM-dd")
-
-          # 1. Update src/version.h
           $vh = Get-Content src/version.h -Raw
-          $vhUpdated = [regex]::Replace($vh, 'FIP_VERSION\s+"[^"]+"', "FIP_VERSION `"$ver`"")
-          $vhUpdated | Out-File src/version.h -Encoding utf8
-
-          # 2. Update CHANGELOG.md
-          $cl = Get-Content CHANGELOG.md -Raw
-          $shortVer = $ver -replace '\.0$', ''
-          $hasHeader = ($cl -match [regex]::Escape("## [$ver]")) -or ($cl -match [regex]::Escape("## [$shortVer]"))
-          if (-not $hasHeader) {
-            $range = "${{ steps.semver.outputs.range }}"
-            $commitLines = @(git log $range --pretty=format:"- %s (%h)")
-            $commitBody = if ($commitLines.Count -gt 0) { $commitLines -join "`n" } else { "- Maintenance and updates." }
-
-            $newEntry = "## [Unreleased]`n`n## [$ver] - $today`n`n### Changes`n$commitBody"
-            if ($cl -match "(?ms)^## \[Unreleased\].*?(?=^## \[|\z)") {
-              $unreleasedContent = [regex]::Match($cl, "(?ms)^## \[Unreleased\]\s*(.*?)(?=^## \[|\z)").Groups[1].Value.Trim()
-              if ($unreleasedContent -ne "") {
-                $newEntry = "## [Unreleased]`n`n## [$ver] - $today`n`n$unreleasedContent"
-              }
-              $cl = [regex]::Replace($cl, "(?ms)^## \[Unreleased\].*?(?=^## \[|\z)", "$newEntry`n`n")
-            } else {
-              $cl = "## [Unreleased]`n`n## [$ver] - $today`n`n$commitBody`n`n" + $cl
-            }
-            $cl | Out-File CHANGELOG.md -Encoding utf8
-          }
-
-          # 3. Commit the bump on a release branch and open an auto-merge PR -
-          # master requires pull requests (branch protection), so a direct push is rejected.
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add src/version.h CHANGELOG.md
-          git diff-index --quiet HEAD
-          if ($LASTEXITCODE -ne 0) {
-            npx prettier --write CHANGELOG.md
-            git add src/version.h CHANGELOG.md
-            $branch = "release/bump-version$($ver -replace '\.', '-')"
-            git checkout -b $branch
-            git commit -m "chore(release): bump version to $ver"
-            # force: a previous attempt may have left the branch behind
-            git push origin $branch --force
-            $prUrl = gh pr create --title "chore(release): bump version to $ver" --body "Automated version bump for v$ver. Auto-merges once checks pass."
-            gh pr merge $prUrl --auto --squash
-            Write-Host "Opened auto-merge PR for version bump: $prUrl"
+          $m = [regex]::Match($vh, 'FIP_VERSION\s+"([^"]+)"')
+          $ver = if ($m.Success) { $m.Groups[1].Value } else { "0.0.0" }
+          git fetch --tags --force
+          $exists = git rev-parse -q --verify "refs/tags/v$ver" 2>$null
+          if ($LASTEXITCODE -eq 0 -and $exists) {
+            Write-Host "Tag v$ver already exists. Skipping release."
+            Write-Output "should_release=false" >> $env:GITHUB_OUTPUT
           } else {
-            Write-Host "No file changes needed for version bump."
+            Write-Host "Will release v$ver"
+            Write-Output "should_release=true" >> $env:GITHUB_OUTPUT
+            Write-Output "version=$ver" >> $env:GITHUB_OUTPUT
+            Write-Output "tag=v$ver" >> $env:GITHUB_OUTPUT
           }
 
       - name: Setup MSBuild
