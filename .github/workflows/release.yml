@@ -39,6 +39,7 @@ jobs:
             Write-Output "version=$ver" >> $env:GITHUB_OUTPUT
             Write-Output "tag=v$ver" >> $env:GITHUB_OUTPUT
           }
+          exit 0  # rev-parse returning 1 (no tag) is expected, not a failure
 
       - name: Setup MSBuild
         if: steps.semver.outputs.should_release == 'true'
