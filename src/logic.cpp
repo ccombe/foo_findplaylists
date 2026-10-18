@@ -3,6 +3,7 @@
 #include "logic.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <cstring>
 
@@ -37,6 +38,81 @@ bool has_invalid_tag_chars(const char *field) {
             return true;
     }
     return false;
+}
+
+namespace {
+
+// Lowercase everything so volume/prefix matching is case-insensitive.
+std::string normalized_dir(std::string s) {
+    for (auto & c : s) {
+        if (c == '/')
+            c = '\\';
+        else
+            c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
+    }
+    return s;
+}
+
+// Append the \\-separated path components of s[start..] to out.
+void split_components(std::vector<std::string> & out, const std::string & s, size_t start) {
+    size_t i = start;
+    while (i < s.size()) {
+        size_t next = s.find('\\', i);
+        if (next == std::string::npos)
+            next = s.size();
+        if (i < next) // ignore empty segments (e.g. doubleslash)
+            out.push_back(s.substr(i, next - i));
+        i = next + 1;
+    }
+}
+
+// True if every directory in the volume shares comps[i] == part.
+bool all_share_component(const std::vector<std::vector<std::string>> & comps, size_t i, const std::string & part) {
+    for (const auto & c : comps) {
+        if (i >= c.size() || c[i] != part)
+            return false;
+    }
+    return true;
+}
+
+} // namespace
+
+// Deepest shared ancestor (per drive volume) of the given directory paths:
+// the top folder to scan so empty sibling folders in the watched tree are found.
+// Returns one root per volume that actually holds library directories.
+std::vector<std::string> common_scan_roots(const std::unordered_set<std::string> & dirPaths) {
+    // volume ("g:\") -> (component lists, one original-case dir to cut the root from)
+    struct vol {
+        std::vector<std::vector<std::string>> comps;
+        const std::string *sample = nullptr;
+    };
+    std::unordered_map<std::string, vol> byVolume;
+    for (const auto & raw : dirPaths) {
+        if (raw.find("://") != std::string::npos) // network / stream path
+            continue;
+        const std::string norm = normalized_dir(raw);
+        const size_t colon = norm.find(":\\");
+        if (colon == std::string::npos) // not a file path
+            continue;
+        const std::string volume = norm.substr(0, colon + 2);
+        auto & v = byVolume[volume];
+        v.comps.push_back({});
+        split_components(v.comps.back(), norm, volume.size());
+        v.sample = &raw;
+    }
+
+    std::vector<std::string> roots;
+    roots.reserve(byVolume.size());
+    for (auto & [volume, v] : byVolume) {
+        size_t rootLen = volume.size(); // original-case root cut from the sample dir
+        for (size_t i = 0; i < v.comps[0].size(); ++i) {
+            if (!all_share_component(v.comps, i, v.comps[0][i]))
+                break;
+            rootLen += v.comps[0][i].size() + 1; // component + separator
+        }
+        roots.push_back(v.sample->substr(0, rootLen));
+    }
+    return roots;
 }
 
 bool record_track_playlist_match(const std::string & key, const std::string & playlistName,

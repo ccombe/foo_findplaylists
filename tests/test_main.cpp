@@ -168,6 +168,36 @@ static void test_classify_directory() {
     CHECK(classify_directory({"song.flac", "readme.txt"}) == dir_status::has_music);
 }
 
+static void test_common_scan_roots() {
+    // Deepest shared ancestor of sibling leaf dirs
+    std::vector<std::string> r1 = common_scan_roots({"H:\\Music\\Rock\\Album A", "H:\\Music\\Pop\\Album B"});
+    CHECK(r1.size() == 1);
+    CHECK(r1[0] == "H:\\Music\\");
+
+    // Mixed-case and forward slashes normalize to one volume
+    std::vector<std::string> r2 = common_scan_roots({"h:/music/rock/album a", "H:\\MUSIC\\JAZZ\\"});
+    CHECK(r2.size() == 1);
+    for (auto & c : r2[0]) {
+        if (c == '/')
+            c = '\\';
+        c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
+    }
+    CHECK(r2[0] == "h:\\music\\");
+
+    // Two volumes -> one root per volume
+    std::vector<std::string> r3 = common_scan_roots({"H:\\Music\\Rock", "I:\\Music\\Jazz"});
+    CHECK(r3.size() == 2);
+
+    // A dir directly in the volume -> root is the volume itself
+    std::vector<std::string> r4 = common_scan_roots({"H:\\Music\\Rock", "H:\\Track.mp3"});
+    CHECK(r4.size() == 1);
+    CHECK(r4[0] == "H:\\");
+
+    // Non-file paths are ignored
+    CHECK(common_scan_roots({"http://server/stream"}).empty());
+    CHECK(common_scan_roots({}).empty());
+}
+
 static void test_record_track_playlist_match() {
     std::unordered_map<std::string, size_t> indexOf;
     std::vector<track_report> reports;
@@ -252,6 +282,7 @@ int main() {
     test_is_music_file();
     test_is_ignorable_file();
     test_classify_directory();
+    test_common_scan_roots();
     test_derive_duplicates();
     test_derive_orphans();
     printf("%d checks, %d failures\n", g_checks, g_failures);

@@ -181,6 +181,27 @@ bool tag_has_invalid_chars(metadb_handle_ptr h) {
     return false;
 }
 
+// Enumerate one directory's direct files and subfolders.
+static bool list_dir_entries(const std::string & dir, std::vector<std::string> & filenames,
+                             std::vector<std::string> & subdirs) {
+    WIN32_FIND_DATAA fd;
+    HANDLE hFind = FindFirstFileA((dir + "\\*").c_str(), &fd);
+    if (hFind == INVALID_HANDLE_VALUE)
+        return false;
+    do {
+        const char *name = fd.cFileName;
+        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
+            continue;
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            subdirs.push_back(dir + "\\" + name);
+        } else {
+            filenames.push_back(name);
+        }
+    } while (FindNextFileA(hFind, &fd));
+    FindClose(hFind);
+    return true;
+}
+
 std::vector<std::string> scan_dead_directories() {
     std::vector<std::string> candidates;
     static_api_ptr_t<library_manager> lm;
@@ -188,7 +209,7 @@ std::vector<std::string> scan_dead_directories() {
     lm->get_all_items(all);
 
     // Collect unique parent directories from all library tracks.
-    std::unordered_set<std::string> roots;
+    std::unordered_set<std::string> dirOfTrack;
     for (t_size t = 0; t < all.get_count(); ++t) {
         const char *path = all[t]->get_path();
         if (!path)
@@ -197,16 +218,20 @@ std::vector<std::string> scan_dead_directories() {
         size_t lastSlash = dir.find_last_of("\\/");
         if (lastSlash != std::string::npos)
             dir = dir.substr(0, lastSlash);
-        roots.insert(dir);
+        dirOfTrack.insert(dir);
     }
 
-    // For each unique directory, enumerate all subdirectories recursively.
+    // Scan from the deepest common ancestor per volume, not from leaf dirs
+    // only - empty folders sitting beside album folders would else be missed.
+    const std::vector<std::string> roots = common_scan_roots(dirOfTrack);
+
+    // For each root, enumerate all subdirectories recursively.
     std::unordered_set<std::string> visited;
     for (const auto & root : roots) {
-        std::vector<std::string> stack;
-        stack.push_back(root);
+        std::vector<std::pair<std::string, bool>> stack;
+        stack.emplace_back(root, true);
         while (!stack.empty()) {
-            std::string dir = stack.back();
+            auto [dir, isTop] = stack.back();
             stack.pop_back();
 
             if (!dir.empty() && (dir.back() == '\\' || dir.back() == '/'))
@@ -216,36 +241,23 @@ std::vector<std::string> scan_dead_directories() {
                 continue;
             visited.insert(dir);
 
-            // Enumerate entries in this directory.
-            WIN32_FIND_DATAA fd;
-            HANDLE hFind = FindFirstFileA((dir + "\\*").c_str(), &fd);
-            if (hFind == INVALID_HANDLE_VALUE)
-                continue;
-
             std::vector<std::string> filenames;
             std::vector<std::string> subdirs;
-            do {
-                const char *name = fd.cFileName;
-                if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
-                    continue;
-                if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-                    subdirs.push_back(dir + "\\" + name);
-                } else {
-                    filenames.push_back(name);
-                }
-            } while (FindNextFileA(hFind, &fd));
-            FindClose(hFind);
+            if (!list_dir_entries(dir, filenames, subdirs))
+                continue;
 
-            // Classify this directory.
-            dir_status st = classify_directory(filenames);
-            if (st == dir_status::empty_or_dead) {
+            // Classify this directory. The shared ancestor itself is never
+            // dead - it just wraps the tree being scanned. A dir with
+            // subfolders is skipped too: cleanup targets are true leaf
+            // folders, and RemoveDirectoryA would fail on them anyway.
+            if (!isTop && subdirs.empty() && classify_directory(filenames) == dir_status::empty_or_dead) {
                 candidates.push_back(dir);
             }
 
             // Push subdirs for traversal.
             for (const auto & sd : subdirs) {
                 if (!visited.count(sd))
-                    stack.push_back(sd);
+                    stack.emplace_back(sd, false);
             }
         }
     }

@@ -91,3 +91,7 @@ enum class dir_status {
 
 // Classifies a list of filenames (not full paths) in a directory.
 dir_status classify_directory(const std::vector<std::string> & filenames);
+
+// Deepest shared ancestor (per drive volume) of the given directory paths - the
+// top folders to scan so empty sibling folders in the watched tree are found.
+std::vector<std::string> common_scan_roots(const std::unordered_set<std::string> & dirPaths);
