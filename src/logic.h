@@ -95,3 +95,7 @@ dir_status classify_directory(const std::vector<std::string> & filenames);
 // Deepest shared ancestor (per drive volume) of the given directory paths - the
 // top folders to scan so empty sibling folders in the watched tree are found.
 std::vector<std::string> common_scan_roots(const std::unordered_set<std::string> & dirPaths);
+
+// Windows extended-length path (\\?\ prefix) so folders deeper than MAX_PATH
+// still work with Win32 file APIs and std::filesystem narrow operations.
+std::string extended_path(const std::string & path);

@@ -5,6 +5,16 @@ Versions match `FIP_VERSION` in `src/version.h`.
 
 ## [Unreleased]
 
+## [1.8.3] - 2026-10-18
+
+### Fixed
+
+- Deep folder trees beyond MAX_PATH (260 characters) are now scanned and removable via extended-length (`\\?\`) paths.
+
+### Added
+
+- Find/Remove Dead-Empty Directories reports include scan statistics (library items seen, scan roots, directories visited, unreadable counts) to diagnose missed locations.
+
 ## [1.8.2] - 2026-10-18
 
 ### Fixed

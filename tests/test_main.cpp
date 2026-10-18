@@ -239,6 +239,19 @@ static void test_record_track_playlist_match() {
     CHECK_STR_EQ(reports[1].lists[0], "Favorites");
 }
 
+static void test_extended_path() {
+    // Normal drive paths get the extended-length prefix
+    CHECK_STR_EQ(extended_path("G:\\My Drive\\Music"), "\\\\?\\G:\\My Drive\\Music");
+    // Forward slashes become backslashes
+    CHECK_STR_EQ(extended_path("g:/music"), "\\\\?\\g:\\music");
+    // Already extended paths pass through untouched
+    CHECK_STR_EQ(extended_path("\\\\?\\G:\\Music"), "\\\\?\\G:\\Music");
+    // UNC shares use the UNC form
+    CHECK_STR_EQ(extended_path("\\\\server\\share\\dir"), "\\\\?\\UNC\\server\\share\\dir");
+    // Relative paths pass through
+    CHECK_STR_EQ(extended_path("relative\\dir"), "relative\\dir");
+}
+
 static void test_derive_duplicates() {
     scan_result result;
     result.tracks = {
@@ -283,6 +296,7 @@ int main() {
     test_is_ignorable_file();
     test_classify_directory();
     test_common_scan_roots();
+    test_extended_path();
     test_derive_duplicates();
     test_derive_orphans();
     printf("%d checks, %d failures\n", g_checks, g_failures);
