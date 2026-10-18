@@ -181,6 +181,27 @@ bool tag_has_invalid_chars(metadb_handle_ptr h) {
     return false;
 }
 
+// Enumerate one directory's direct files and subfolders.
+static bool list_dir_entries(const std::string & dir, std::vector<std::string> & filenames,
+                             std::vector<std::string> & subdirs) {
+    WIN32_FIND_DATAA fd;
+    HANDLE hFind = FindFirstFileA((dir + "\\*").c_str(), &fd);
+    if (hFind == INVALID_HANDLE_VALUE)
+        return false;
+    do {
+        const char *name = fd.cFileName;
+        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
+            continue;
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            subdirs.push_back(dir + "\\" + name);
+        } else {
+            filenames.push_back(name);
+        }
+    } while (FindNextFileA(hFind, &fd));
+    FindClose(hFind);
+    return true;
+}
+
 std::vector<std::string> scan_dead_directories() {
     std::vector<std::string> candidates;
     static_api_ptr_t<library_manager> lm;
@@ -220,25 +241,10 @@ std::vector<std::string> scan_dead_directories() {
                 continue;
             visited.insert(dir);
 
-            // Enumerate entries in this directory.
-            WIN32_FIND_DATAA fd;
-            HANDLE hFind = FindFirstFileA((dir + "\\*").c_str(), &fd);
-            if (hFind == INVALID_HANDLE_VALUE)
-                continue;
-
             std::vector<std::string> filenames;
             std::vector<std::string> subdirs;
-            do {
-                const char *name = fd.cFileName;
-                if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
-                    continue;
-                if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-                    subdirs.push_back(dir + "\\" + name);
-                } else {
-                    filenames.push_back(name);
-                }
-            } while (FindNextFileA(hFind, &fd));
-            FindClose(hFind);
+            if (!list_dir_entries(dir, filenames, subdirs))
+                continue;
 
             // Classify this directory. The shared ancestor itself is never
             // dead - it just wraps the tree being scanned. A dir with
