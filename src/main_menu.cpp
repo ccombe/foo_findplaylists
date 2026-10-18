@@ -370,23 +370,29 @@ class main_find_playing : public mainmenu_commands {
         t_size removed = 0;
         t_size failed = 0;
         for (const auto & dir : dirs) {
-            // Delete all files in the directory first.
-            WIN32_FIND_DATAA fd;
-            HANDLE hFind = FindFirstFileA((dir + std::string("\\*")).c_str(), &fd);
-            if (hFind != INVALID_HANDLE_VALUE) {
-                do {
-                    const char *name = fd.cFileName;
-                    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
-                        continue;
-                    std::string fullPath = dir + std::string("\\") + name;
-                    if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-                        RemoveDirectoryA(fullPath.c_str());
-                    } else {
-                        DeleteFileA(fullPath.c_str());
-                    }
-                } while (FindNextFileA(hFind, &fd));
-                FindClose(hFind);
+            // Delete all files in the directory first. std::filesystem is
+            // used because FindFirstFileA parses [abc] in the path as a
+            // wildcard pattern, so folder names like "[unnamed]" fail.
+            namespace fs = std::filesystem;
+            std::error_code ec;
+            for (fs::directory_iterator it(fs::path(dir), fs::directory_options::skip_permission_denied, ec), end;
+                 it != end && !ec; it.increment(ec)) {
+                std::string name;
+                try {
+                    name = it->path().filename().string();
+                } catch (const std::system_error &) {
+                    continue; // undecodable name: skip the entry
+                }
+                const std::string fullPath = dir + std::string("\\") + name;
+                if (it->is_directory(ec)) {
+                    if (ec)
+                        break;
+                    RemoveDirectoryA(fullPath.c_str());
+                } else if (!ec) {
+                    DeleteFileA(fullPath.c_str());
+                }
             }
+            ec.clear();
             if (RemoveDirectoryA(dir.c_str()))
                 ++removed;
             else

@@ -181,25 +181,32 @@ bool tag_has_invalid_chars(metadb_handle_ptr h) {
     return false;
 }
 
-// Enumerate one directory's direct files and subfolders.
+// Enumerate one directory's direct files and subfolders. std::filesystem is
+// used because FindFirstFileA parses [abc] in the path as a wildcard pattern,
+// so folder names like "[unnamed]" silently fail to enumerate.
 static bool list_dir_entries(const std::string & dir, std::vector<std::string> & filenames,
                              std::vector<std::string> & subdirs) {
-    WIN32_FIND_DATAA fd;
-    HANDLE hFind = FindFirstFileA((dir + "\\*").c_str(), &fd);
-    if (hFind == INVALID_HANDLE_VALUE)
-        return false;
-    do {
-        const char *name = fd.cFileName;
-        if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
-            continue;
-        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    for (fs::directory_iterator it(fs::path(dir), fs::directory_options::skip_permission_denied, ec), end; it != end;
+         it.increment(ec)) {
+        if (ec)
+            break;
+        std::string name;
+        try {
+            name = it->path().filename().string();
+        } catch (const std::system_error &) {
+            continue; // undecodable name: skip the entry
+        }
+        if (it->is_directory(ec)) {
+            if (ec)
+                break;
             subdirs.push_back(dir + "\\" + name);
-        } else {
+        } else if (!ec) {
             filenames.push_back(name);
         }
-    } while (FindNextFileA(hFind, &fd));
-    FindClose(hFind);
-    return true;
+    }
+    return !ec;
 }
 
 std::vector<std::string> scan_dead_directories() {
