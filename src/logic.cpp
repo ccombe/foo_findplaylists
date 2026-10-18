@@ -61,6 +61,8 @@ std::vector<std::string> common_scan_roots(const std::unordered_set<std::string>
     };
     std::unordered_map<std::string, vol> byVolume;
     for (const auto & raw : dirPaths) {
+        if (raw.find("://") != std::string::npos) // network / stream path
+            continue;
         const std::string norm = toNorm(raw);
         const size_t colon = norm.find(":\\");
         if (colon == std::string::npos) // not a file path (network, stream...)
@@ -101,8 +103,19 @@ std::vector<std::string> common_scan_roots(const std::unordered_set<std::string>
 }
 
 bool record_track_playlist_match(const std::string & key, const std::string & playlistName,
+                                 const std::unordered_map<std::string, size_t> & indexOf,
+                                 std::vector<track_report> & reports) {
+    const auto it = indexOf.find(key);
+    if (it == indexOf.end())
+        return false;
 
-bool record_track_playlist_match(const std::string & key, const std::string & playlistName,
+    auto & lists = reports[it->second].lists;
+    if (!lists.empty() && lists.back() == playlistName)
+        return false;
+
+    lists.push_back(playlistName);
+    return true;
+}
 
 static void append_track_report_entry(pfc::string_base & f, const track_report & r) {
     f << r.header.c_str() << "\n";
