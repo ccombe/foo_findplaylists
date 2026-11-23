@@ -72,10 +72,12 @@ t_size apply_dead_removal(const std::vector<dead_entry> & dead, std::vector<remo
             if (entry.item >= items.get_count()) {
                 failures.push_back({entry.playlistName, entry.header,
                                     "entry index " + std::to_string(entry.item) + " no longer exists in playlist (" +
-                                        std::to_string(items.get_count()) + " items); playlist changed since scan"});
+                                        std::to_string(items.get_count()) + " items); playlist changed since scan",
+                                    "Re-run Find Dead Tracks to refresh entry indices, then remove again."});
             } else if (mask.m[entry.item]) {
-                failures.push_back(
-                    {entry.playlistName, entry.header, "duplicate dead entry at index " + std::to_string(entry.item)});
+                failures.push_back({entry.playlistName, entry.header,
+                                    "duplicate dead entry at index " + std::to_string(entry.item),
+                                    "No action needed if the other copy was removed; otherwise re-run the scan."});
             } else {
                 mask.m[entry.item] = 1;
                 ++marked;
@@ -92,7 +94,8 @@ t_size apply_dead_removal(const std::vector<dead_entry> & dead, std::vector<remo
             for (size_t k = i; k < j; ++k) {
                 if (dead[k].item < items.get_count() && mask.m[dead[k].item]) {
                     failures.push_back({dead[k].playlistName, dead[k].header,
-                                        "playlist_remove_items failed (playlist unavailable or read-only)"});
+                                        "playlist_remove_items failed (playlist unavailable or read-only)",
+                                        "Check the playlist still exists and is writable, then retry."});
                 }
             }
         }

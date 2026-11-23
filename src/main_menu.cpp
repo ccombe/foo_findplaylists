@@ -356,7 +356,8 @@ class main_find_playing : public mainmenu_commands {
 
         for (const auto & f : failed) {
             pfc::string_formatter line;
-            line << "FAILED [" << f.playlist.c_str() << "] " << f.entry.c_str() << " - " << f.reason.c_str();
+            line << "FAILED [" << f.playlist.c_str() << "] " << f.entry.c_str() << " - " << f.reason.c_str()
+                 << "\n      Fix: " << f.fix.c_str();
             FB2K_console_formatter() << line;
         }
 

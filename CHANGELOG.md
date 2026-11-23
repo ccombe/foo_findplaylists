@@ -5,11 +5,17 @@ Versions match `FIP_VERSION` in `src/version.h`.
 
 ## [Unreleased]
 
+## [1.8.7] - 2026-11-23
+
+### Changed
+
+- Dead-track removal failure entries now include a suggested fix ("Re-run Find Dead Tracks...", "Check the playlist still exists and is writable...", etc.) in the report and console, alongside the reason and failed item.
+
 ## [1.8.6] - 2026-11-23
 
 ### Fixed
 
-- Dead-track removal failures are now reported per entry with a reason (stale playlist index, duplicate entry, or playlist API failure) in the report file and the foobar console, and the popup includes the report file path.
+- Dead-track removal failures are now reported per entry with a reason and a suggested fix (stale playlist index, duplicate entry, or playlist API failure) in the report file and the foobar console, and the popup includes the report file path.
 
 ## [1.8.5] - 2026-11-23
 

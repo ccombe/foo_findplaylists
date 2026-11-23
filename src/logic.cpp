@@ -195,7 +195,8 @@ void format_dead_report(const std::vector<dead_entry> & dead, bool removed,
                         const std::vector<std::string> & failedPlaylists, pfc::string_base & out) {
     std::vector<removal_failure> failures;
     for (const auto & name : failedPlaylists)
-        failures.push_back({name, "", "playlist removal failed"});
+        failures.push_back(
+            {name, "", "playlist removal failed", "Check the playlist is still present and writable, then retry."});
     format_dead_report(dead, removed, failures, out);
 }
 
@@ -265,6 +266,7 @@ void format_dead_report(const std::vector<dead_entry> & dead, bool removed,
         for (const auto & f : failures) {
             out << "  - [" << f.playlist.c_str() << "] " << f.entry.c_str() << "\n";
             out << "      Reason: " << f.reason.c_str() << "\n";
+            out << "      Fix: " << f.fix.c_str() << "\n";
         }
     }
 }
