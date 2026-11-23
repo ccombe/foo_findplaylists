@@ -89,11 +89,13 @@ static void test_format_dead() {
 
     // Failed removals are reported individually with a reason
     pfc::string_formatter withFailure;
-    format_dead_report({a}, true, std::vector<removal_failure>{{"Mix A", "Artist - One", "playlist unavailable"}},
+    format_dead_report({a}, true,
+                       std::vector<removal_failure>{{"Mix A", "Artist - One", "playlist unavailable", "Retry."}},
                        withFailure);
     const std::string text(withFailure.c_str());
     CHECK(text.find("FAILED REMOVALS (1)") != std::string::npos);
     CHECK(text.find("Reason: playlist unavailable") != std::string::npos);
+    CHECK(text.find("Fix: Retry.") != std::string::npos);
     CHECK(text.find("(REMOVAL FAILED, untouched)") != std::string::npos);
 }
 

@@ -70,6 +70,7 @@ struct removal_failure {
     std::string playlist;
     std::string entry;
     std::string reason;
+    std::string fix; // how to correct the condition
 };
 
 void format_report(const std::vector<track_report> & reports, pfc::string_base & out);
