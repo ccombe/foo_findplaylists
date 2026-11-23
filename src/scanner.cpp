@@ -4,18 +4,18 @@
 #include <algorithm>
 
 std::string track_key(metadb_handle_ptr h) {
-    return track_key_for(h->get_path(), h->get_subsong_index());
+    return track_key_for(strip_file_scheme(h->get_path()).c_str(), h->get_subsong_index());
 }
 
 bool track_is_live(metadb_handle_ptr h, std::unordered_map<std::string, bool> *cache) {
-    const char *path = h->get_path();
-    if (strstr(path, "://") != nullptr)
-        return true;
+    const std::string path = strip_file_scheme(h->get_path());
+    if (path.find("://") != std::string::npos)
+        return true; // stream, not a local file
     if (cache != nullptr) {
         if (auto it = cache->find(path); it != cache->end())
             return it->second;
     }
-    const bool live = (GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES);
+    const bool live = (GetFileAttributesA(path.c_str()) != INVALID_FILE_ATTRIBUTES);
     if (cache != nullptr)
         cache->emplace(path, live);
     return live;
@@ -32,7 +32,7 @@ static std::string track_header(metadb_handle_ptr h) {
         if (h->format_title(nullptr, t, tf, nullptr) && !t.is_empty())
             return t.c_str();
     }
-    return h->get_path();
+    return strip_file_scheme(h->get_path());
 }
 
 scan_result scan_playlists() {
@@ -125,7 +125,7 @@ std::vector<dead_entry> scan_dead_tracks() {
             e.playlistName = plname.c_str();
             e.item = t;
             e.header = track_header(items[t]);
-            e.path = items[t]->get_path();
+            e.path = strip_file_scheme(items[t]->get_path());
             out.push_back(std::move(e));
         }
     }
@@ -155,7 +155,7 @@ std::vector<dead_entry> scan_invalid_tags() {
             e.playlistName = name;
             e.item = t;
             e.header = track_header(items[t]);
-            e.path = items[t]->get_path();
+            e.path = strip_file_scheme(items[t]->get_path());
             out.push_back(std::move(e));
         }
     }
@@ -221,10 +221,10 @@ std::vector<std::string> scan_dead_directories(std::string *diag) {
     // Collect unique parent directories from all library tracks.
     std::unordered_set<std::string> dirOfTrack;
     for (t_size t = 0; t < all.get_count(); ++t) {
-        const char *path = all[t]->get_path();
-        if (!path)
+        const char *rawPath = all[t]->get_path();
+        if (!rawPath)
             continue;
-        std::string dir(path);
+        std::string dir(strip_file_scheme(rawPath));
         size_t lastSlash = dir.find_last_of("\\/");
         if (lastSlash != std::string::npos)
             dir = dir.substr(0, lastSlash);
