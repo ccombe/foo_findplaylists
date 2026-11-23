@@ -12,4 +12,6 @@ t_size find_or_create_playlist(const char *name);
 // them; anything added manually is wiped on the next run.
 t_size collect_into(const char *plname, const std::vector<metadb_handle_ptr> & tracks);
 
-t_size apply_dead_removal(const std::vector<dead_entry> & dead, std::vector<std::string> & failedPlaylists);
+// Removes dead entries grouped by playlist. failures receives one record per
+// entry that could not be removed, with the playlist, entry and reason.
+t_size apply_dead_removal(const std::vector<dead_entry> & dead, std::vector<removal_failure> & failures);

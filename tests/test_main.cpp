@@ -86,6 +86,15 @@ static void test_format_dead() {
                                       "(Undo per playlist with Ctrl+Z if anything looks wrong.)\n"
                                       "Mix A: 1\n  - Artist - One\n      Z:\\path\\one.mp3\n");
     CHECK_STR_EQ(fmt_dead({}, false), "No dead tracks found. Nothing to do.\n");
+
+    // Failed removals are reported individually with a reason
+    pfc::string_formatter withFailure;
+    format_dead_report({a}, true, std::vector<removal_failure>{{"Mix A", "Artist - One", "playlist unavailable"}},
+                       withFailure);
+    const std::string text(withFailure.c_str());
+    CHECK(text.find("FAILED REMOVALS (1)") != std::string::npos);
+    CHECK(text.find("Reason: playlist unavailable") != std::string::npos);
+    CHECK(text.find("(REMOVAL FAILED, untouched)") != std::string::npos);
 }
 
 static void test_write_report_file() {

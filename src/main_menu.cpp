@@ -348,17 +348,29 @@ class main_find_playing : public mainmenu_commands {
 
     static void run_remove_dead() {
         auto dead = scan_dead_tracks();
-        std::vector<std::string> failed;
+        std::vector<removal_failure> failed;
         const t_size removed = apply_dead_removal(dead, failed);
         pfc::string_formatter msg;
         format_dead_report(dead, true, failed, msg);
-        report("Find in Playlists: dead tracks", msg);
+        const std::string path = report_path("Find in Playlists: dead tracks", msg);
+
+        for (const auto & f : failed) {
+            pfc::string_formatter line;
+            line << "FAILED [" << f.playlist.c_str() << "] " << f.entry.c_str() << " - " << f.reason.c_str();
+            FB2K_console_formatter() << line;
+        }
+
         pfc::string_formatter sum;
-        if (dead.empty())
+        if (dead.empty()) {
             sum << "No dead tracks found. Nothing changed.";
-        else
-            sum << "Removed " << removed << " of " << dead.size() << " dead entries."
-                << (failed.empty() ? "" : " Some removals FAILED, see report.") << "\nUndo with Ctrl+Z per playlist.";
+        } else {
+            sum << "Removed " << removed << " of " << dead.size() << " dead entries.";
+            if (!failed.empty())
+                sum << "\n" << failed.size() << " FAILED - details in console and report: " << path.c_str();
+            else
+                sum << "\nReport: " << path.c_str();
+            sum << "\nUndo with Ctrl+Z per playlist.";
+        }
         confirm("Find in Playlists", sum);
     }
 

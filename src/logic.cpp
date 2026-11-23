@@ -187,8 +187,16 @@ void format_report(const std::vector<track_report> & reports, pfc::string_base &
 }
 
 void format_dead_report(const std::vector<dead_entry> & dead, bool removed, pfc::string_base & out) {
-    const std::vector<std::string> none;
+    const std::vector<removal_failure> none;
     format_dead_report(dead, removed, none, out);
+}
+
+void format_dead_report(const std::vector<dead_entry> & dead, bool removed,
+                        const std::vector<std::string> & failedPlaylists, pfc::string_base & out) {
+    std::vector<removal_failure> failures;
+    for (const auto & name : failedPlaylists)
+        failures.push_back({name, "", "playlist removal failed"});
+    format_dead_report(dead, removed, failures, out);
 }
 
 static void append_dead_entry_item(pfc::string_base & body, const dead_entry & entry) {
@@ -213,7 +221,7 @@ static void append_dead_summary_header(pfc::string_base & head, size_t deadCount
 }
 
 void format_dead_report(const std::vector<dead_entry> & dead, bool removed,
-                        const std::vector<std::string> & failedPlaylists, pfc::string_base & out) {
+                        const std::vector<removal_failure> & failures, pfc::string_base & out) {
     if (dead.empty()) {
         out << "No dead tracks found. Nothing to do.\n";
         return;
@@ -230,6 +238,11 @@ void format_dead_report(const std::vector<dead_entry> & dead, bool removed,
         i = j;
     }
 
+    std::vector<std::string> failedPlaylists;
+    for (const auto & f : failures)
+        if (std::find(failedPlaylists.begin(), failedPlaylists.end(), f.playlist) == failedPlaylists.end())
+            failedPlaylists.push_back(f.playlist);
+
     append_dead_summary_header(out, dead.size(), affected, removed);
 
     // Pass 2: Stream group headers and items directly into out with O(1) group counts
@@ -245,6 +258,14 @@ void format_dead_report(const std::vector<dead_entry> & dead, bool removed,
             append_dead_entry_item(out, dead[k]);
 
         i = j;
+    }
+
+    if (!failures.empty()) {
+        out << "\nFAILED REMOVALS (" << failures.size() << "):\n";
+        for (const auto & f : failures) {
+            out << "  - [" << f.playlist.c_str() << "] " << f.entry.c_str() << "\n";
+            out << "      Reason: " << f.reason.c_str() << "\n";
+        }
     }
 }
 

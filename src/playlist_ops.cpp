@@ -51,8 +51,8 @@ t_size collect_into(const char *plname, const std::vector<metadb_handle_ptr> & t
     return add.get_count();
 }
 
-t_size apply_dead_removal(const std::vector<dead_entry> & dead, std::vector<std::string> & failedPlaylists) {
-    failedPlaylists.clear();
+t_size apply_dead_removal(const std::vector<dead_entry> & dead, std::vector<removal_failure> & failures) {
+    failures.clear();
     if (dead.empty())
         return 0;
     static_api_ptr_t<playlist_manager> pm;
@@ -68,8 +68,16 @@ t_size apply_dead_removal(const std::vector<dead_entry> & dead, std::vector<std:
         size_t j = i;
         while (j < dead.size() && dead[j].playlist == dead[i].playlist &&
                dead[j].playlistName == dead[i].playlistName) {
-            if (dead[j].item < items.get_count() && !mask.m[dead[j].item]) {
-                mask.m[dead[j].item] = 1;
+            const dead_entry & entry = dead[j];
+            if (entry.item >= items.get_count()) {
+                failures.push_back({entry.playlistName, entry.header,
+                                    "entry index " + std::to_string(entry.item) + " no longer exists in playlist (" +
+                                        std::to_string(items.get_count()) + " items); playlist changed since scan"});
+            } else if (mask.m[entry.item]) {
+                failures.push_back(
+                    {entry.playlistName, entry.header, "duplicate dead entry at index " + std::to_string(entry.item)});
+            } else {
+                mask.m[entry.item] = 1;
                 ++marked;
             }
             ++j;
@@ -78,10 +86,16 @@ t_size apply_dead_removal(const std::vector<dead_entry> & dead, std::vector<std:
             i = j;
             continue;
         }
-        if (pm->playlist_remove_items(pl, mask))
+        if (pm->playlist_remove_items(pl, mask)) {
             total += marked;
-        else
-            failedPlaylists.push_back(dead[i].playlistName);
+        } else {
+            for (size_t k = i; k < j; ++k) {
+                if (dead[k].item < items.get_count() && mask.m[dead[k].item]) {
+                    failures.push_back({dead[k].playlistName, dead[k].header,
+                                        "playlist_remove_items failed (playlist unavailable or read-only)"});
+                }
+            }
+        }
         i = j;
     }
     return total;
