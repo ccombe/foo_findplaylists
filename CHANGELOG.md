@@ -5,6 +5,12 @@ Versions match `FIP_VERSION` in `src/version.h`.
 
 ## [Unreleased]
 
+## [1.8.5] - 2026-11-23
+
+### Changed
+
+- Find Dead/Empty Directories now runs off the UI thread: results stream into the foobar2000 console as they are found, and the completion popup includes the report file path. Repeated clicks while a scan is running are ignored.
+
 ## [1.8.4] - 2026-11-23
 
 ### Fixed

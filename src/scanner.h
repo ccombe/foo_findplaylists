@@ -1,6 +1,7 @@
 #pragma once
 
 #include <pfc/pfc.h>
+#include <functional>
 #include <string>
 #include <vector>
 #include <unordered_set>
@@ -33,9 +34,17 @@ void goto_track_in_playlist(const std::string & playlist, const std::string & ke
 // Groups results by playlist for reporting/cleanup.
 std::vector<dead_entry> scan_invalid_tags();
 
-// Directories under the media library that are empty or contain only ignorable files.
-// Returns a list of directory paths that are candidates for deletion. When diag is
-// given, it receives a one-line scan summary (items seen, roots, dirs visited, errors).
+// Media-library scan roots (one per volume). MUST be called on the main thread:
+// it queries library_manager. info receives library item/dir counts.
+std::vector<std::string> library_scan_roots(std::string *info = nullptr);
+
+// Walk the given roots off-thread. onFound, when given, is called once per
+// candidate as it is discovered (results are sorted at the end).
+std::vector<std::string> scan_dead_directories(const std::vector<std::string> & roots, std::string *diag = nullptr,
+                                               const std::function<void(const std::string &)> & onFound = {});
+
+// Convenience wrapper: main-thread roots + filesystem walk in one call.
+// diag receives a one-line summary (items seen, roots, dirs visited, errors).
 std::vector<std::string> scan_dead_directories(std::string *diag = nullptr);
 
 // Playlists this component manages. Excluded from every scan and from export:
