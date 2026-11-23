@@ -65,10 +65,19 @@ std::vector<dup_info> derive_orphans(const scan_result & result, const std::unor
 
 // Formatters ----------------------------------------------------------------
 
+// One dead entry that could not be removed, with the reason it was skipped.
+struct removal_failure {
+    std::string playlist;
+    std::string entry;
+    std::string reason;
+};
+
 void format_report(const std::vector<track_report> & reports, pfc::string_base & out);
 void format_dead_report(const std::vector<dead_entry> & dead, bool removed, pfc::string_base & out);
 void format_dead_report(const std::vector<dead_entry> & dead, bool removed,
                         const std::vector<std::string> & failedPlaylists, pfc::string_base & out);
+void format_dead_report(const std::vector<dead_entry> & dead, bool removed,
+                        const std::vector<removal_failure> & failures, pfc::string_base & out);
 std::string safe_filename(const char *name);
 
 // Writes body to %TEMP%\foo_findplaylists_report.txt. Returns the path.
