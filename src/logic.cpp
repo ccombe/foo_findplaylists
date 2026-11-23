@@ -115,6 +115,28 @@ std::vector<std::string> common_scan_roots(const std::unordered_set<std::string>
     return roots;
 }
 
+// foobar2000 prefixes local file paths with "file://" (e.g. file://G:\Music).
+// Strip it so Win32 APIs and root derivation see the actual filesystem path.
+std::string strip_file_scheme(const char *path) {
+    if (!path)
+        return {};
+    static const char scheme[] = "file://";
+    constexpr size_t n = sizeof(scheme) - 1;
+    const std::string s(path);
+    if (s.size() >= n) {
+        bool same = true;
+        for (size_t i = 0; i < n; ++i) {
+            if (static_cast<char>(::tolower(static_cast<unsigned char>(s[i]))) != scheme[i]) {
+                same = false;
+                break;
+            }
+        }
+        if (same)
+            return s.substr(n);
+    }
+    return s;
+}
+
 // Windows extended-length path so > MAX_PATH trees still enumerate. The \\?\
 // prefix also keeps names like "[unnamed]" literal for the file APIs.
 std::string extended_path(const std::string & path) {

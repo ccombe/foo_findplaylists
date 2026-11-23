@@ -239,6 +239,17 @@ static void test_record_track_playlist_match() {
     CHECK_STR_EQ(reports[1].lists[0], "Favorites");
 }
 
+static void test_strip_file_scheme() {
+    // foobar2000 local paths arrive as file:// + native path
+    CHECK_STR_EQ(strip_file_scheme("file://G:\\My Drive\\Music\\track.mp3"), "G:\\My Drive\\Music\\track.mp3");
+    CHECK_STR_EQ(strip_file_scheme("FILE://G:/Music/track.flac"), "G:/Music/track.flac");
+    // streams and plain paths pass through untouched
+    CHECK_STR_EQ(strip_file_scheme("http://server/stream.mp3"), "http://server/stream.mp3");
+    CHECK_STR_EQ(strip_file_scheme("G:\\plain.mp3"), "G:\\plain.mp3");
+    CHECK_STR_EQ(strip_file_scheme("file://"), "");
+    CHECK_STR_EQ(strip_file_scheme(nullptr), "");
+}
+
 static void test_extended_path() {
     // Normal drive paths get the extended-length prefix
     CHECK_STR_EQ(extended_path("G:\\My Drive\\Music"), "\\\\?\\G:\\My Drive\\Music");
@@ -297,6 +308,7 @@ int main() {
     test_classify_directory();
     test_common_scan_roots();
     test_extended_path();
+    test_strip_file_scheme();
     test_derive_duplicates();
     test_derive_orphans();
     printf("%d checks, %d failures\n", g_checks, g_failures);

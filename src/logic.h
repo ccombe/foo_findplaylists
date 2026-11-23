@@ -96,6 +96,10 @@ dir_status classify_directory(const std::vector<std::string> & filenames);
 // top folders to scan so empty sibling folders in the watched tree are found.
 std::vector<std::string> common_scan_roots(const std::unordered_set<std::string> & dirPaths);
 
+// foobar2000 reports local files as "file://G:\\path\\track.mp3". Strip the
+// scheme so filesystem checks and scan roots see a plain native path.
+std::string strip_file_scheme(const char *path);
+
 // Windows extended-length path (\\?\ prefix) so folders deeper than MAX_PATH
 // still work with Win32 file APIs and std::filesystem narrow operations.
 std::string extended_path(const std::string & path);

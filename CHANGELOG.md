@@ -5,6 +5,13 @@ Versions match `FIP_VERSION` in `src/version.h`.
 
 ## [Unreleased]
 
+## [1.8.4] - 2026-11-23
+
+### Fixed
+
+- Dead/empty directory scan now works: foobar2000 reports local paths with a `file://` prefix, which root derivation discarded as a stream. Local paths are stripped to native form everywhere (scan roots, existence checks, dead-track detection, reports).
+- Dead-track detection is no longer silently disabled for local files by the same `file://` prefix.
+
 ## [1.8.3] - 2026-10-18
 
 ### Fixed
