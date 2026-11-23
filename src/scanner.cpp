@@ -211,9 +211,7 @@ static bool list_dir_entries(const std::string & dir, std::vector<std::string> &
     return !ec;
 }
 
-std::vector<std::string> scan_dead_directories(std::string *diag) {
-    std::vector<std::string> candidates;
-    size_t enumFailures = 0;
+std::vector<std::string> library_scan_roots(std::string *info) {
     static_api_ptr_t<library_manager> lm;
     metadb_handle_list all;
     lm->get_all_items(all);
@@ -234,9 +232,26 @@ std::vector<std::string> scan_dead_directories(std::string *diag) {
     // Scan from the deepest common ancestor per volume, not from leaf dirs
     // only - empty folders sitting beside album folders would else be missed.
     const std::vector<std::string> roots = common_scan_roots(dirOfTrack);
+    if (info) {
+        std::string rootsJoined;
+        for (const auto & r : roots) {
+            if (!rootsJoined.empty())
+                rootsJoined += "; ";
+            rootsJoined += r;
+        }
+        *info = "library items: " + std::to_string(all.get_count()) +
+                ", track dirs: " + std::to_string(dirOfTrack.size()) + ", roots: [" + rootsJoined + "]";
+    }
+    return roots;
+}
+
+std::vector<std::string> scan_dead_directories(const std::vector<std::string> & roots, std::string *diag,
+                                               const std::function<void(const std::string &)> & onFound) {
+    std::vector<std::string> candidates;
+    size_t enumFailures = 0;
+    std::unordered_set<std::string> visited;
 
     // For each root, enumerate all subdirectories recursively.
-    std::unordered_set<std::string> visited;
     for (const auto & root : roots) {
         std::vector<std::pair<std::string, bool>> stack;
         stack.emplace_back(root, true);
@@ -264,6 +279,8 @@ std::vector<std::string> scan_dead_directories(std::string *diag) {
             // folders, and RemoveDirectoryA would fail on them anyway.
             if (!isTop && subdirs.empty() && classify_directory(filenames) == dir_status::empty_or_dead) {
                 candidates.push_back(dir);
+                if (onFound)
+                    onFound(dir);
             }
 
             // Push subdirs for traversal.
@@ -279,18 +296,20 @@ std::vector<std::string> scan_dead_directories(std::string *diag) {
     candidates.erase(std::unique(candidates.begin(), candidates.end()), candidates.end());
 
     if (diag) {
-        std::string rootsJoined;
-        for (const auto & r : roots) {
-            if (!rootsJoined.empty())
-                rootsJoined += "; ";
-            rootsJoined += r;
-        }
-        *diag = "library items: " + std::to_string(all.get_count()) +
-                ", track dirs: " + std::to_string(dirOfTrack.size()) + ", roots: [" + rootsJoined +
-                "], dirs visited: " + std::to_string(visited.size()) +
-                ", unreadable dirs: " + std::to_string(enumFailures);
+        *diag =
+            "dirs visited: " + std::to_string(visited.size()) + ", unreadable dirs: " + std::to_string(enumFailures);
     }
     return candidates;
+}
+
+std::vector<std::string> scan_dead_directories(std::string *diag) {
+    std::string rootInfo;
+    const std::vector<std::string> roots = library_scan_roots(&rootInfo);
+    std::string walkInfo;
+    std::vector<std::string> dirs = scan_dead_directories(roots, &walkInfo);
+    if (diag)
+        *diag = rootInfo + ", " + walkInfo;
+    return dirs;
 }
 
 void find_playlists_for(metadb_handle_list_cref sel, std::vector<track_report> & out) {

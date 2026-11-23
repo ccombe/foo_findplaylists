@@ -4,6 +4,10 @@
 #include "export.h"
 #include "logic.h"
 
+#include <atomic>
+#include <memory>
+#include <thread>
+
 // Command GUIDs.
 static const GUID guid_main_cmd = {0xbc83531a, 0x186a, 0x4de2, {0x97, 0x31, 0x94, 0x19, 0x80, 0xdb, 0xad, 0x1d}};
 static const GUID guid_cmd_dupes = {0x79ae2e61, 0x1513, 0x4aca, {0xb8, 0x36, 0x31, 0x64, 0xca, 0x9c, 0x65, 0xaa}};
@@ -22,6 +26,9 @@ static const GUID guid_cmd_invalid_tags = {
     0xa1b2c3d4, 0xe5f6, 0x7890, {0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0}};
 
 static const GUID guid_main_group = {0x23adac65, 0xf18a, 0x4e1c, {0xa2, 0xef, 0xc0, 0x3a, 0x75, 0x0d, 0x96, 0x88}};
+
+// Guards against overlapping dead-directory scans from repeated menu clicks.
+static std::atomic<bool> g_deadDirScanRunning{false};
 
 static mainmenu_group_popup_factory g_main_group(guid_main_group, mainmenu_groups::library,
                                                  mainmenu_commands::sort_priority_dontcare, "Find in Playlists");
@@ -186,11 +193,36 @@ class main_find_playing : public mainmenu_commands {
     }
 
   private:
-    static void report(const char *title, const pfc::string_base & msg) {
+    static std::string report_path(const char *title, const pfc::string_base & msg) {
         const std::string path(write_report_file(title, msg));
         FB2K_console_formatter() << title << " (report: " << path.c_str() << ")";
+        return path;
     }
+    static void report(const char *title, const pfc::string_base & msg) { report_path(title, msg); }
     static void confirm(const char *title, const pfc::string_base & summary) { popup_message::g_show(summary, title); }
+
+    // Console writes are marshalled to the main thread; the scan itself runs off-thread.
+    static void console_line(const std::string & line) {
+        fb2k::inMainThread([line]() { FB2K_console_formatter() << line.c_str(); });
+    }
+
+    static void show_dead_dirs_results(const std::vector<std::string> & dirs, const std::string & diag) {
+        pfc::string_formatter msg;
+        msg << "Dead/empty directories found: " << dirs.size() << "\n";
+        msg << "Scan stats: " << diag.c_str() << "\n\n";
+        for (const auto & d : dirs)
+            msg << d.c_str() << "\n";
+        const std::string path = report_path("Find in Playlists: dead directories", msg);
+        FB2K_console_formatter() << "Find in Playlists: scan complete - " << dirs.size() << " found.";
+
+        pfc::string_formatter sum;
+        if (dirs.empty())
+            sum << "No dead/empty directories found.";
+        else
+            sum << dirs.size() << " dead/empty directories found.\nReport: " << path.c_str()
+                << "\nFull list also printed to the console.";
+        confirm("Find in Playlists", sum);
+    }
 
     static void run_find_playing() {
         pfc::string_formatter msg;
@@ -338,20 +370,32 @@ class main_find_playing : public mainmenu_commands {
     }
 
     static void run_dead_dirs() {
-        std::string diag;
-        auto dirs = scan_dead_directories(&diag);
-        pfc::string_formatter msg;
-        msg << "Dead/empty directories found: " << dirs.size() << "\n";
-        msg << "Scan stats: " << diag.c_str() << "\n\n";
-        for (const auto & d : dirs)
-            msg << d.c_str() << "\n";
-        report("Find in Playlists: dead directories", msg);
-        pfc::string_formatter sum;
-        if (dirs.empty())
-            sum << "No dead/empty directories found.";
-        else
-            sum << dirs.size() << " dead/empty directories found.\nFull list in the report file.";
-        confirm("Find in Playlists", sum);
+        if (g_deadDirScanRunning.exchange(true)) {
+            pfc::string_formatter busy;
+            busy << "A dead-directory scan is already running.";
+            confirm("Find in Playlists", busy);
+            return;
+        }
+
+        // library_manager is main-thread-only; collect roots before going off-thread.
+        std::string rootInfo;
+        const std::vector<std::string> roots = library_scan_roots(&rootInfo);
+        if (roots.empty()) {
+            g_deadDirScanRunning = false;
+            show_dead_dirs_results({}, rootInfo + ", dirs visited: 0, unreadable dirs: 0");
+            return;
+        }
+
+        FB2K_console_formatter() << "Find in Playlists: scanning " << roots.size() << " root(s)...";
+        auto found = std::make_shared<std::vector<std::string>>();
+        auto walkInfo = std::make_shared<std::string>();
+        std::thread([roots, found, walkInfo, rootInfo]() {
+            *found = scan_dead_directories(roots, walkInfo.get(), console_line);
+            fb2k::inMainThread([found, walkInfo, rootInfo]() {
+                g_deadDirScanRunning = false;
+                show_dead_dirs_results(*found, rootInfo + ", " + *walkInfo);
+            });
+        }).detach();
     }
 
     static void run_remove_dead_dirs() {
